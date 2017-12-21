@@ -1,6 +1,2 @@
-from math import pi, sin, fabs
-import kinematics as ki
-import numpy as np
+from vpython import box
 
-
-if __name__ == "__main__":	    
