@@ -58,7 +58,6 @@ def forwardPosKinematics(angles):
     p1[1] = 0;
     p1[2] = d1;
     
-
     p2[0]  = a2*cos(q1)*cos(q2);
     p2[1]  = a2*cos(q2)*sin(q1);
     p2[2]  = d1+a2*sin(q2);
@@ -79,9 +78,11 @@ def forwardPosKinematics(angles):
     p6[1] = cos(q3)*(d4 + d6*cos(q5))*sin(q1)*sin(q2) - d6*(cos(q4)*sin(q1)*sin(q2)*sin(q3) + cos(q1)*sin(q4))*sin(q5) + cos(q2)*sin(q1)*(a2 + (d4 + d6*cos(q5))*sin(q3) + d6*cos(q3)*cos(q4)*sin(q5));
     p6[2] =  d1 - cos(q2 + q3)*(d4 + d6*cos(q5)) + a2*sin(q2) + d6*cos(q4)*sin(q2 + q3)*sin(q5);
     
-    return [p1,p2,p3,p4,p5,p6]
+    return p1,p2,p3,p4,p5,p6
 
-def forwardRotKinematics(angles):
+def forwardKinematicsRotation(angles):
+    q1=angles[1]; q2=angles[2]; q3=angles[3]; q4=angles[4]; q5=angles[5];q6=angles[6]
+    
     sx = cos(q6)*(cos(q4)*sin(q1) - cos(q1)*cos(q2 + q3)*sin(q4)) - (cos(q5)*sin(q1)*sin(q4) + cos(q1)*(cos(q2 + q3)*cos(q4)*cos(q5) - sin(q2 + q3)*sin(q5)))*sin(q6);
     sy = cos(q1)*(-cos(q4)*cos(q6) + cos(q5)*sin(q4)*sin(q6)) - sin(q1)*(-sin(q2 + q3)*sin(q5)*sin(q6) + cos(q2 + q3)*(cos(q6)*sin(q4) + cos(q4)*sin(q5)*sin(q6)));
     sz = -cos(q6)*sin(q2 + q3)*sin(q4) - (cos(q4)*cos(q5)*sin(q2 + q3) + cos(q2 + q3)*sin(q5))*sin(q6);
@@ -89,6 +90,11 @@ def forwardRotKinematics(angles):
     ay = cos(q5)*sin(q1)*sin(q2 + q3) + (cos(q2 + q3)*cos(q4)*sin(q1) - cos(q1)*sin(q4))*sin(q5);
     az = -cos(q2 + q3)*cos(q5) + cos(q4)*sin(q2 + q3)*sin(q5);
     
+    s = np.array([sx,sy,sz])
+    a = np.array([ax,ay,az])
+    n = np.cross(a,s)
+    res = np.column_stack((n,a,s))
+    return res
     
 class pose3D:
     
