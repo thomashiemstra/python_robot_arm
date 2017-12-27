@@ -20,6 +20,7 @@ class pose3D:
         self.position = position
         self.flip = flip
         self.eulerMatrix(0,0,0)
+        
     
     def eulerMatrix(self, alpha, beta, gamma):
         ca = cos(alpha); cb = cos(beta); cy = cos(gamma);
@@ -41,12 +42,10 @@ def inverseKinematics(pose):
     t = pose.orientation
     flip = pose.flip
 
-
     xc = x - d6*t[0, 2]
     yc = y - d6*t[1, 2]
     zc = z - d6*t[2, 2]
-    angles = np.zeros(7, dtype = np.float32)
-
+    angles = np.zeros(7, dtype = np.float64)
 
     angles[1] = arctan2(yc,xc)
     
@@ -107,6 +106,53 @@ def forwardPosKinematics(angles):
     
     return p1,p2,p4,p6
 
+def forwardKinematicsRotation(angles):
+    q1=angles[1]; q2=angles[2]; q3=angles[3]; q4=angles[4]; q5=angles[5];q6=angles[6]
+    
+    sx = cos(q6)*(cos(q4)*sin(q1) - cos(q1)*cos(q2 + q3)*sin(q4)) - (cos(q5)*sin(q1)*sin(q4) + cos(q1)*(cos(q2 + q3)*cos(q4)*cos(q5) - sin(q2 + q3)*sin(q5)))*sin(q6);
+    sy = cos(q1)*(-cos(q4)*cos(q6) + cos(q5)*sin(q4)*sin(q6)) - sin(q1)*(-sin(q2 + q3)*sin(q5)*sin(q6) + cos(q2 + q3)*(cos(q6)*sin(q4) + cos(q4)*cos(q5)*sin(q6)));
+    sz = -cos(q6)*sin(q2 + q3)*sin(q4) - (cos(q4)*cos(q5)*sin(q2 + q3) + cos(q2 + q3)*sin(q5))*sin(q6);
+    
+    ax = sin(q1)*sin(q4)*sin(q5) + cos(q1)*(cos(q5)*sin(q2 + q3) + cos(q2 + q3)*cos(q4)*sin(q5));
+    ay = cos(q5)*sin(q1)*sin(q2 + q3) + (cos(q2 + q3)*cos(q4)*sin(q1) - cos(q1)*sin(q4))*sin(q5);
+    az = -cos(q2 + q3)*cos(q5) + cos(q4)*sin(q2 + q3)*sin(q5);    
+    
+    s = np.array([sx,sy,sz])
+    a = np.array([ax,ay,az])
+    n = np.cross(s,a)
+    res = np.column_stack((n,s,a))
+        
+    return res
+
+
+def cuboid_data(pos, size=[20,20,20]):
+    # code taken from
+    # https://stackoverflow.com/a/35978146/4124317 
+    for i in range(0,3):
+        pos[i] += size[i]/2
+        
+    # suppose axis direction: x: to left; y: to inside; z: to upper
+    # get the (left, outside, bottom) point
+    o = [a - b / 2 for a, b in zip(pos, size)]
+    # get the length, width, and height
+    l, w, h = size
+    x = np.matrix([  [o[0], o[0] + l, o[0] + l, o[0] ,o[0]],                # x coordinate of points in bottom surface
+                     [o[0], o[0] + l, o[0] + l, o[0], o[0]],                # x coordinate of points in upper surface
+                     [o[0], o[0] + l, o[0] + l, o[0], o[0]],                # x coordinate of points in outside surface   
+                     [o[0], o[0] + l, o[0] + l, o[0], o[0]]]  )             # x coordinate of points in inside surface
+    
+    y = np.matrix([[o[1], o[1], o[1] + w, o[1] + w, o[1]],      # y coordinate of points in bottom surface
+         [o[1], o[1], o[1] + w, o[1] + w, o[1]],                # y coordinate of points in upper surface
+         [o[1], o[1], o[1], o[1], o[1]],                        # y coordinate of points in outside surface
+         [o[1] + w, o[1] + w, o[1] + w, o[1] + w, o[1] + w]])   # y coordinate of points in inside surface
+    
+    z = np.matrix([[o[2], o[2], o[2], o[2], o[2]],                       
+         [o[2] + h, o[2] + h, o[2] + h, o[2] + h, o[2] + h],   
+         [o[2], o[2], o[2] + h, o[2] + h, o[2]],               
+         [o[2], o[2], o[2] + h, o[2] + h, o[2]]]    )
+    
+    return x, y, z
+      
 
 fig = plt.figure()
 ax = Axes3D(fig)
@@ -116,48 +162,77 @@ ax.plot([0,len], [0,0], [0,0], 'o-', lw=2, color = 'r')
 ax.plot([0,0], [0,len], [0,0], 'o-', lw=2, color = 'g')
 ax.plot([0,0], [0,0], [0,len], 'o-', lw=2, color = 'b')
 
-ax.set_xlim(-50, 50)
-ax.set_ylim(0, 50)
-ax.set_zlim(0, 30)
+ax.set_xlim(-30, 30)
+ax.set_ylim(0, 60)
+ax.set_zlim(0, 60)
 
-#angles= np.array([0, pi/2, pi/4, 0, 0, pi/4,0], dtype=np.float64)
-#line, = ax.plot([0,p1[0], p2[0], p4[0], p6[0]], [0,p1[1], p2[1], p4[1], p6[1]], [0,p1[2], p2[2], p4[2], p6[2]], 'go-', lw=2)
 
-line, = ax.plot([], [], [], 'go-', lw=2)
 
-def init():
-    line.set_data([], [])
-    line.set_3d_properties([])
-    return line
+X, Y, Z = cuboid_data([0,0,0] )
+ax.plot_surface(X, Y, Z, color='b', rstride=1, cstride=1, alpha=1)
+
+
+
+arm, = ax.plot([], [], [], 'yo-', lw=2)
+gripL, = ax.plot([], [], [], 'yo-', lw=2)
+gripR, = ax.plot([], [], [], 'yo-', lw=2)
+
+lines = [arm,gripL,gripR]
+
 
 
 def animate(i):
-    
+       
     if(i < 100):
         position = np.array([ (i/2.5)  -20 ,25,10], dtype = np.float64)
     else:
         i = 100 - i
         position = np.array([ (i/2.5) + 20 ,25,10], dtype = np.float64)
     
+    
     pose = pose3D(position, True)
     angles = inverseKinematics(pose)
     p1,p2,p4,p6 = forwardPosKinematics(angles)
+    rot = forwardKinematicsRotation(angles)
     
-    thisx = [0,p1[0], p2[0], p4[0], p6[0]]
-    thisy = [0,p1[1], p2[1], p4[1], p6[1]]
-    thisz = [0,p1[2], p2[2], p4[2], p6[2]]
-    line.set_data(thisx, thisy)
-    line.set_3d_properties(thisz)
-    return line
+    temp = np.array([0,0,d6/2], dtype = np.float64)
+    g00 = rot.dot(temp)
+    temp = np.array([0,-2,0], dtype = np.float64)
+    g11 = rot.dot(temp) 
+    temp = np.array([0,-2,d6/2], dtype = np.float64)
+    g12 = rot.dot(temp) 
+    temp = np.array([0,2,0], dtype = np.float64)
+    g21 = rot.dot(temp) 
+    temp = np.array([0,2,d6/2], dtype = np.float64)
+    g22 = rot.dot(temp) 
+    
+    p5 = p4 + g00
+    
+    thisx = [0,p1[0], p2[0], p4[0], p5[0]]
+    thisy = [0,p1[1], p2[1], p4[1], p5[1]]
+    thisz = [0,p1[2], p2[2], p4[2], p5[2]]
+    
+    gripRx = [p5[0], p5[0]+g11[0], p5[0]+g12[0]]
+    gripRy = [p5[1], p5[1]+g11[1], p5[1]+g12[1]]
+    gripRz = [p5[2], p5[2]+g11[2], p5[2]+g12[2]]
+    
+    gripLx = [p5[0], p5[0]+g21[0], p5[0]+g22[0]]
+    gripLy = [p5[1], p5[1]+g21[1], p5[1]+g22[1]]
+    gripLz = [p5[2], p5[2]+g21[2], p5[2]+g22[2]]
+ 
+    arm.set_data(thisx, thisy)
+    arm.set_3d_properties(thisz)
+    
+    gripR.set_data(gripRx, gripRy)
+    gripR.set_3d_properties(gripRz)
+    
+    gripL.set_data(gripLx, gripLy)
+    gripL.set_3d_properties(gripLz)
+    
+    return lines
 
 
 ani = animation.FuncAnimation(fig, animate, 200,
-                              interval=25, blit=False, init_func=init)
-
-
-
-
-
-
+                              interval=25)
 
 
