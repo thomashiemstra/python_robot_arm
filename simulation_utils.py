@@ -70,7 +70,7 @@ class box:
                 
         return np.asarray(R.dot(r_temp))
     
-    def checkColission(self, r_point, radius=0.0):
+    def check_colission(self, r_point, radius=0.0):
         r_prime = self.getRPrime(r_point)
         x = r_prime[0]
         y = r_prime[1]
@@ -85,16 +85,16 @@ class box:
             dx = 0
             
         if y < 0:
-            dy = np.maximum(-y + radius, 0) #dx > 0 means collision due to radius of point
+            dy = np.maximum(-y + radius, 0) #dy > 0 means collision due to radius of point
         elif y > W:
-            dy = np.minimum(L - y + radius,0) #dx < 0 means collision due to radius of point
+            dy = np.minimum(L - y + radius,0) #dy < 0 means collision due to radius of point
         else:
             dy = 0
             
         if z < 0:
-            dz = np.maximum(-z + radius, 0) #dx > 0 means collision due to radius of point
+            dz = np.maximum(-z + radius, 0) #dz > 0 means collision due to radius of point
         elif z > H:
-            dz = np.minimum(L - z + radius,0) #dx < 0 means collision due to radius of point
+            dz = np.minimum(L - z + radius,0) #dz < 0 means collision due to radius of point
         else:
             dz = 0
         
@@ -102,10 +102,10 @@ class box:
         if r == 0:
             self.colission = True
         
-        return r
+        return r, [dx,dy,dz]
 
 
-def plotWorld():
+def plot_world():
     fig = plt.figure()
     ax = Axes3D(fig)
     ax.set_xlim(-20, 20)
@@ -142,10 +142,11 @@ class animateArm:
         self.arm, = self.ax.plot([], [], [], 'yo-', lw=2)
         self.gripL, = self.ax.plot([], [], [], 'yo-', lw=2)
         self.gripR, = self.ax.plot([], [], [], 'yo-', lw=2)
-        self.lines = [self.arm,self.gripL,self.gripR]
-        self.radius = 5
+        self.vec, = self.ax.plot([], [], [], 'yo-', lw=2)
+        self.lines = [self.arm,self.gripL,self.gripR,self.vec]
+        self.radius = 0.0
         
-    def setObstacles(self, obstacles):
+    def set_obstacles(self, obstacles):
         self.obstacles = obstacles
         
     def getGripper(self, rot):
@@ -162,7 +163,7 @@ class animateArm:
         
         return g00,g11,g12,g21,g22
     
-    def setArm(self, p1, p2, p4, g00, g11, g12, g21, g22):
+    def set_arm(self, p1, p2, p4, g00, g11, g12, g21, g22):
         p5 = p4 + g00
         
         thisx = [0,p1[0], p2[0], p4[0], p5[0]]
@@ -203,21 +204,30 @@ class animateArm:
         rot = forwardKinematicsRotation(angles)
         
         g00,g11,g12,g21,g22 = self.getGripper(rot)
-        collisionPoints = self.setArm(p1,p2,p4,g00,g11,g12,g21,g22)
+        collisionPoints = self.set_arm(p1,p2,p4,g00,g11,g12,g21,g22)
         
         self.arm.set_color('b')
         self.gripR.set_color('b')
         self.gripL.set_color('b')
         
+        size = collisionPoints.shape[0]
+        r = np.zeros(size)
+        vec = np.zeros((size,3))
+        
         if(self.obstacles.size > 0):
-            for box in self.obstacles:
-                for i in range(0, collisionPoints.shape[0]):
-                    box.checkColission(collisionPoints[i],self.radius) 
-                    if( box.checkColission(collisionPoints[i],self.radius) == 0):
+            for i in range(0, size):
+                current_r = 5 #only if a point is close enough do I record it's vector to the obstacle
+                for box in self.obstacles:
+                    r[i], temp_vec = box.check_colission(collisionPoints[i],self.radius) 
+                    if r[i] < current_r:
+                        pass
+                        current_r = r[i]
+                        vec[i] = temp_vec
+                    if(r[i] == 0):
                         self.gripR.set_color('r')
                         self.gripL.set_color('r')
                         self.arm.set_color('r')
-        
+
         return self.lines
     
     def runAnimation(self):
