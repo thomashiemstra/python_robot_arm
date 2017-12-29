@@ -123,35 +123,6 @@ def forwardKinematicsRotation(angles):
     res = np.column_stack((n,s,a))
         
     return res
-
-
-def cuboid_data(pos, size=[20,20,20]):
-    # code taken from
-    # https://stackoverflow.com/a/35978146/4124317 
-    for i in range(0,3):
-        pos[i] += size[i]/2
-        
-    # suppose axis direction: x: to left; y: to inside; z: to upper
-    # get the (left, outside, bottom) point
-    o = [a - b / 2 for a, b in zip(pos, size)]
-    # get the length, width, and height
-    l, w, h = size
-    x = np.matrix([  [o[0], o[0] + l, o[0] + l, o[0] ,o[0]],                # x coordinate of points in bottom surface
-                     [o[0], o[0] + l, o[0] + l, o[0], o[0]],                # x coordinate of points in upper surface
-                     [o[0], o[0] + l, o[0] + l, o[0], o[0]],                # x coordinate of points in outside surface   
-                     [o[0], o[0] + l, o[0] + l, o[0], o[0]]]  )             # x coordinate of points in inside surface
-    
-    y = np.matrix([[o[1], o[1], o[1] + w, o[1] + w, o[1]],      # y coordinate of points in bottom surface
-         [o[1], o[1], o[1] + w, o[1] + w, o[1]],                # y coordinate of points in upper surface
-         [o[1], o[1], o[1], o[1], o[1]],                        # y coordinate of points in outside surface
-         [o[1] + w, o[1] + w, o[1] + w, o[1] + w, o[1] + w]])   # y coordinate of points in inside surface
-    
-    z = np.matrix([[o[2], o[2], o[2], o[2], o[2]],                       
-         [o[2] + h, o[2] + h, o[2] + h, o[2] + h, o[2] + h],   
-         [o[2], o[2], o[2] + h, o[2] + h, o[2]],               
-         [o[2], o[2], o[2] + h, o[2] + h, o[2]]]    )
-    
-    return x, y, z
       
 
 fig = plt.figure()
@@ -167,72 +138,70 @@ ax.set_ylim(0, 60)
 ax.set_zlim(0, 60)
 
 
-
-X, Y, Z = cuboid_data([0,0,0] )
-ax.plot_surface(X, Y, Z, color='b', rstride=1, cstride=1, alpha=1)
-
-
-
-arm, = ax.plot([], [], [], 'yo-', lw=2)
-gripL, = ax.plot([], [], [], 'yo-', lw=2)
-gripR, = ax.plot([], [], [], 'yo-', lw=2)
-
-lines = [arm,gripL,gripR]
-
-
-
-def animate(i):
-       
-    if(i < 100):
-        position = np.array([ (i/2.5)  -20 ,25,10], dtype = np.float64)
-    else:
-        i = 100 - i
-        position = np.array([ (i/2.5) + 20 ,25,10], dtype = np.float64)
+class animateArm:
     
+    arm, = ax.plot([], [], [], 'yo-', lw=2)
+    gripL, = ax.plot([], [], [], 'yo-', lw=2)
+    gripR, = ax.plot([], [], [], 'yo-', lw=2)
+    lines = [arm,gripL,gripR]
+    steps = 100
     
-    pose = pose3D(position, True)
-    angles = inverseKinematics(pose)
-    p1,p2,p4,p6 = forwardPosKinematics(angles)
-    rot = forwardKinematicsRotation(angles)
+    def __init__(self):
+        pass
     
-    temp = np.array([0,0,d6/2], dtype = np.float64)
-    g00 = rot.dot(temp)
-    temp = np.array([0,-2,0], dtype = np.float64)
-    g11 = rot.dot(temp) 
-    temp = np.array([0,-2,d6/2], dtype = np.float64)
-    g12 = rot.dot(temp) 
-    temp = np.array([0,2,0], dtype = np.float64)
-    g21 = rot.dot(temp) 
-    temp = np.array([0,2,d6/2], dtype = np.float64)
-    g22 = rot.dot(temp) 
+    def animate(self, i):
+        if(i < 100):
+            position = np.array([ (i/2.5)  -20 ,25,10], dtype = np.float64)
+        else:
+            i = 100 - i
+            position = np.array([ (i/2.5) + 20 ,25,10], dtype = np.float64)
+            
+        pose = pose3D(position, True)
+        angles = inverseKinematics(pose)
+        p1,p2,p4,p6 = forwardPosKinematics(angles)
+        rot = forwardKinematicsRotation(angles)
+        
+        temp = np.array([0,0,d6/2], dtype = np.float64)
+        g00 = rot.dot(temp)
+        temp = np.array([0,-2,0], dtype = np.float64)
+        g11 = rot.dot(temp) 
+        temp = np.array([0,-2,d6/2], dtype = np.float64)
+        g12 = rot.dot(temp) 
+        temp = np.array([0,2,0], dtype = np.float64)
+        g21 = rot.dot(temp) 
+        temp = np.array([0,2,d6/2], dtype = np.float64)
+        g22 = rot.dot(temp) 
+        
+        p5 = p4 + g00
+        
+        thisx = [0,p1[0], p2[0], p4[0], p5[0]]
+        thisy = [0,p1[1], p2[1], p4[1], p5[1]]
+        thisz = [0,p1[2], p2[2], p4[2], p5[2]]
+        
+        gripRx = [p5[0], p5[0]+g11[0], p5[0]+g12[0]]
+        gripRy = [p5[1], p5[1]+g11[1], p5[1]+g12[1]]
+        gripRz = [p5[2], p5[2]+g11[2], p5[2]+g12[2]]
+        
+        gripLx = [p5[0], p5[0]+g21[0], p5[0]+g22[0]]
+        gripLy = [p5[1], p5[1]+g21[1], p5[1]+g22[1]]
+        gripLz = [p5[2], p5[2]+g21[2], p5[2]+g22[2]]
+     
+        self.arm.set_data(thisx, thisy)
+        self.arm.set_3d_properties(thisz)
+        
+        self.gripR.set_data(gripRx, gripRy)
+        self.gripR.set_3d_properties(gripRz)
+        
+        self.gripL.set_data(gripLx, gripLy)
+        self.gripL.set_3d_properties(gripLz)
+        
+        return self.lines
     
-    p5 = p4 + g00
-    
-    thisx = [0,p1[0], p2[0], p4[0], p5[0]]
-    thisy = [0,p1[1], p2[1], p4[1], p5[1]]
-    thisz = [0,p1[2], p2[2], p4[2], p5[2]]
-    
-    gripRx = [p5[0], p5[0]+g11[0], p5[0]+g12[0]]
-    gripRy = [p5[1], p5[1]+g11[1], p5[1]+g12[1]]
-    gripRz = [p5[2], p5[2]+g11[2], p5[2]+g12[2]]
-    
-    gripLx = [p5[0], p5[0]+g21[0], p5[0]+g22[0]]
-    gripLy = [p5[1], p5[1]+g21[1], p5[1]+g22[1]]
-    gripLz = [p5[2], p5[2]+g21[2], p5[2]+g22[2]]
- 
-    arm.set_data(thisx, thisy)
-    arm.set_3d_properties(thisz)
-    
-    gripR.set_data(gripRx, gripRy)
-    gripR.set_3d_properties(gripRz)
-    
-    gripL.set_data(gripLx, gripLy)
-    gripL.set_3d_properties(gripLz)
-    
-    return lines
+    def runAnimation(self, fig):
+        print("hoi")
+        ani = animation.FuncAnimation(fig, self.animate, 200, interval=25)
+        return ani
 
-
-ani = animation.FuncAnimation(fig, animate, 200,
-                              interval=25)
-
+animate = animateArm()
+ani = animate.runAnimation(fig)
 
