@@ -99,10 +99,11 @@ class box:
             dz = 0
         
         r = sqrt(dx*dx + dy*dy + dz*dz)
-        if r == 0:
-            self.colission = True
         
-        return r, [dx,dy,dz]
+        if r > 0.0001:
+            return r, np.array([dx/r,dy/r,dz/r])
+        else:
+            return 0,np.array([0,0,0])
 
 
 def plot_world():
@@ -136,6 +137,8 @@ class animateArm:
 #        self.radius=radius
     obstacles = np.array([])
         
+    cut_off = 5.0 
+    
     def __init__(self,fig,ax):
         self.ax = ax
         self.fig = fig
@@ -216,18 +219,21 @@ class animateArm:
         
         if(self.obstacles.size > 0):
             for i in range(0, size):
-                current_r = 5 #only if a point is close enough do I record it's vector to the obstacle
                 for box in self.obstacles:
-                    r[i], temp_vec = box.check_colission(collisionPoints[i],self.radius) 
-                    if r[i] < current_r:
-                        pass
-                        current_r = r[i]
-                        vec[i] = temp_vec
-                    if(r[i] == 0):
+                    r, temp_vec = box.check_colission(collisionPoints[i],self.radius) 
+                    if r < self.cut_off:
+                        vec[i] += temp_vec/(r*r)
+                    if(r == 0):
                         self.gripR.set_color('r')
                         self.gripL.set_color('r')
                         self.arm.set_color('r')
-
+        
+        for i in range(0, size):
+            r = np.linalg.norm(vec[i])
+            if r > 0:
+                vec[i] /= r
+        
+        
         return self.lines
     
     def runAnimation(self):
