@@ -55,6 +55,7 @@ def forwardPosKinematics(angles):
     
     p1=np.zeros(3, dtype = np.float64)
     p2=np.zeros(3, dtype = np.float64)
+    p3=np.zeros(3, dtype = np.float64)
     p4=np.zeros(3, dtype = np.float64)
     p6=np.zeros(3, dtype = np.float64)
         
@@ -65,6 +66,10 @@ def forwardPosKinematics(angles):
     p2[0]  = a2*cos(q1)*cos(q2);
     p2[1]  = a2*cos(q2)*sin(q1);
     p2[2]  = d1+a2*sin(q2);
+    
+    p3[0] =  cos(q1)*(a2*cos(q2) + (d4/2.0)*sin(q2+q3));
+    p3[1] =  sin(q1)*(a2*cos(q2) + (d4/2.0)*sin(q2+q3));
+    p3[2] =  d1 - (d4/2.0)*cos(q2+q3) + a2*sin(q2);
         
     p4[0] =  cos(q1)*(a2*cos(q2) + d4*sin(q2+q3));
     p4[1] =  sin(q1)*(a2*cos(q2) + d4*sin(q2+q3));
@@ -74,7 +79,7 @@ def forwardPosKinematics(angles):
     p6[1] = cos(q3)*(d4 + d6*cos(q5))*sin(q1)*sin(q2) - d6*(cos(q4)*sin(q1)*sin(q2)*sin(q3) + cos(q1)*sin(q4))*sin(q5) + cos(q2)*sin(q1)*(a2 + (d4 + d6*cos(q5))*sin(q3) + d6*cos(q3)*cos(q4)*sin(q5));
     p6[2] =  d1 - cos(q2 + q3)*(d4 + d6*cos(q5)) + a2*sin(q2) + d6*cos(q4)*sin(q2 + q3)*sin(q5);
     
-    return p1,p2,p4,p6
+    return p1,p2,p3,p4,p6
 
 def forwardKinematicsRotation(angles):
     q1=angles[1]; q2=angles[2]; q3=angles[3]; q4=angles[4]; q5=angles[5];q6=angles[6]
