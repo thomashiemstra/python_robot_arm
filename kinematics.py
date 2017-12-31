@@ -101,10 +101,9 @@ class pose3D:
     def __init__(self, position, flip = False):
         self.position = position
         self.flip = flip
-        self.eulerMatrix(0,0,0)
+        self.euler_matrix(0,0,0)
         
-    
-    def eulerMatrix(self, alpha, beta, gamma):
+    def euler_matrix(self, alpha, beta, gamma):
         ca = cos(alpha); cb = cos(beta); cy = cos(gamma);
         sa = sin(alpha); sb = sin(beta); sy = sin(gamma);
         self.orientation[0, 0] = ca*sb*cy + sa*sy

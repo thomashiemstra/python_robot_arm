@@ -3,6 +3,7 @@ environ['MPLBACKEND'] = 'module://gr.matplotlib.backend_gr'
 
 from simulation_utils import box, plot_world, animateArm
 import numpy as np
+from kinematics import pose3D
 
 
 
@@ -17,7 +18,19 @@ box2.plot(ax)
 obstacles = np.array([box1,box2])
 
 animation = animateArm(fig,ax)
-animation.set_obstacles(obstacles)
 
-ani = animation.runAnimation()
+position = np.array([-20,25,10])
+pose = pose3D(position, True)
+animation.draw_arm(pose, 'r')
+
+
+animation2 = animateArm(fig,ax)
+
+position = np.array([20,25,10])
+pose = pose3D(position, True)
+animation2.draw_arm(pose)
+
+#animation.set_obstacles(obstacles)
+#
+#ani = animation.runAnimation()
 

@@ -1,5 +1,5 @@
 import numpy as np
-from numpy import sin, cos, sqrt
+from numpy import sin, cos, sqrt, pi
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -58,7 +58,7 @@ class box:
         ax.plot_surface(X, Y, Z, color=self.color, rstride=1, cstride=1, alpha=1)
         
 #    vector of the point expressed in the cube's coordinate frame
-    def getRPrime(self, r_point):
+    def get_r_prime(self, r_point):
         c, s = np.cos(self.angle), np.sin(self.angle)
         R = np.array([[c, -s, 0], [s, c, 0],[0, 0, 1]])
         
@@ -71,7 +71,7 @@ class box:
         return np.asarray(R.dot(r_temp))
     
     def check_colission(self, r_point, radius=0.0):
-        r_prime = self.getRPrime(r_point)
+        r_prime = self.get_r_prime(r_point)
         x = r_prime[0]
         y = r_prime[1]
         z = r_prime[2]
@@ -142,13 +142,40 @@ class animateArm:
     def __init__(self,fig,ax):
         self.ax = ax
         self.fig = fig
-        self.arm, = self.ax.plot([], [], [], 'yo-', lw=2)
+        self.arm, =   self.ax.plot([], [], [], 'yo-', lw=2)
         self.gripL, = self.ax.plot([], [], [], 'yo-', lw=2)
         self.gripR, = self.ax.plot([], [], [], 'yo-', lw=2)
-        self.vec, = self.ax.plot([], [], [], 'yo-', lw=2)
-        self.lines = [self.arm,self.gripL,self.gripR,self.vec]
+        self.lines = [self.arm, self.gripL, self.gripR]
         self.radius = 0.0
         
+        pose = pose3D(np.array([20,25,10]), True)
+        self.goal_points = self.get_goal_points(pose)
+        
+    def get_control_points(self,p2, p4, rot):
+        temp = np.array([0,0,d6/2], dtype = np.float64)
+        g00 = rot.dot(temp)
+        temp = np.array([0,-2,0], dtype = np.float64)
+        g11 = rot.dot(temp) 
+        temp = np.array([0,-2,d6/2], dtype = np.float64)
+        g12 = rot.dot(temp) 
+        temp = np.array([0,2,0], dtype = np.float64)
+        g21 = rot.dot(temp) 
+        temp = np.array([0,2,d6/2], dtype = np.float64)
+        g22 = rot.dot(temp)
+        
+        p5 = p4 + g00
+        
+        return np.array([p2, p4, p5+g11, p5+g12, p5+g21, p5+g22])
+    
+    def get_goal_points(self, goal_pose):
+        
+        angles = inverseKinematics(goal_pose)
+        p1,p2,p4,p6 = forwardPosKinematics(angles)
+        rot = forwardKinematicsRotation(angles)
+        goal_points = self.get_control_points(p2,p4,rot)
+        
+        return goal_points    
+    
     def set_obstacles(self, obstacles):
         self.obstacles = obstacles
         
@@ -193,7 +220,34 @@ class animateArm:
         #all the points to check for collision
         return np.array([p2, p4, p5+g11, p5+g12, p5+g21, p5+g22])
     
+    def get_attr_vecs(self, current_points, goal_points):
+        size = current_points.shape[0]
+        attr_vecs = np.zeros((size,3))
+        r = np.zeros(size)
+        
+        for i in range(0,size):
+            attr_vecs[i] = goal_points[i] - current_points[i]
+            r[i] = np.linalg.norm(attr_vecs[i]) #normalize them
+            if r[i] > 0:
+                attr_vecs[i] /= r[i]
+            
+        return np.linalg.norm(r)
+    
+    
+    def draw_arm(self, pose, color='b'):
+        angles = inverseKinematics(pose)
+        p1,p2,p4,p6 = forwardPosKinematics(angles)
+        rot = forwardKinematicsRotation(angles)
+        g00,g11,g12,g21,g22 = self.getGripper(rot)
+        
+        self.set_arm(p1,p2,p4,g00,g11,g12,g21,g22)
+        self.gripR.set_color(color)
+        self.gripL.set_color(color)
+        self.arm.set_color(color)
+        
+    
     def animate(self, i):
+        
         if(i < 100):
             position = np.array([ (i/2.5)  -20 ,25,10], dtype = np.float64)
         else:
@@ -205,8 +259,8 @@ class animateArm:
         
         p1,p2,p4,p6 = forwardPosKinematics(angles)
         rot = forwardKinematicsRotation(angles)
-        
         g00,g11,g12,g21,g22 = self.getGripper(rot)
+        
         collisionPoints = self.set_arm(p1,p2,p4,g00,g11,g12,g21,g22)
         
         self.arm.set_color('b')
@@ -221,22 +275,160 @@ class animateArm:
             for i in range(0, size):
                 for box in self.obstacles:
                     r, temp_vec = box.check_colission(collisionPoints[i],self.radius) 
-                    if r < self.cut_off:
-                        vec[i] += temp_vec/(r*r)
+                    if r < self.cut_off and r > 0:
+                        vec[i] = temp_vec/(r*r)
                     if(r == 0):
                         self.gripR.set_color('r')
                         self.gripL.set_color('r')
                         self.arm.set_color('r')
-        
+
         for i in range(0, size):
             r = np.linalg.norm(vec[i])
             if r > 0:
                 vec[i] /= r
         
+        dist = self.get_attr_vecs(collisionPoints, self.goal_points)
+        print(dist)
         
         return self.lines
     
+    
     def runAnimation(self):
-        return animation.FuncAnimation(self.fig, self.animate, 200, interval=25)
+        return animation.FuncAnimation(self.fig, self.animate, 200, interval=100)
 
+
+
+#--------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+class env:
+    alpha = 0.001 #amount by which to update the angels in radians
+    collision = False
+    
+    def __init__(self,initial_pose, goal_pose):
+        self.current_angles = inverseKinematics(initial_pose)
+        self.initial_points = self.get_initial_points(initial_pose)
+        self.goal_points = self.get_goal_points(goal_pose)
+        self.animation_angles = np.array(self.current_angles)
+        self.animation_steps = 0
         
+        attr_vecs, attr_r = self.get_attr_vecs(self.initial_points, self.goal_points)
+        self.prev_dist = attr_r
+    
+    def set_obstacles(self, obstacles):
+        self.obstacles = obstacles
+        
+    def clamp(self, angle, min_angle, max_angle):
+        return np.clip(angle, min_angle, max_angle)
+    
+    #input current_angles and delta_angles
+    def update_angles(self, c_a, d_a):
+        c_a[1] = self.clamp(c_a[1] + self.alpha*d_a[0],0,pi)
+        c_a[2] = self.clamp(c_a[2] + self.alpha*d_a[1],0,pi)
+        c_a[3] = self.clamp(c_a[3] + self.alpha*d_a[2],0,pi)
+        c_a[4] = self.clamp(c_a[4] + self.alpha*d_a[3],-pi,pi)
+        c_a[5] = self.clamp(c_a[5] + self.alpha*d_a[4],-pi,pi)
+        c_a[6] = self.clamp(c_a[6] + self.alpha*d_a[5],-pi,pi)
+        
+        return c_a
+        
+    def get_control_points(self,p2, p4, rot):
+        temp = np.array([0,0,d6/2], dtype = np.float64)
+        g00 = rot.dot(temp)
+        temp = np.array([0,-2,0], dtype = np.float64)
+        g11 = rot.dot(temp) 
+        temp = np.array([0,-2,d6/2], dtype = np.float64)
+        g12 = rot.dot(temp) 
+        temp = np.array([0,2,0], dtype = np.float64)
+        g21 = rot.dot(temp) 
+        temp = np.array([0,2,d6/2], dtype = np.float64)
+        g22 = rot.dot(temp)
+        
+        p5 = p4 + g00
+        
+        return np.array([p2, p4, p5+g11, p5+g12, p5+g21, p5+g22])
+    
+    def get_initial_points(self, initial_pose):
+        angles = inverseKinematics(initial_pose)
+        p1,p2,p4,p6 = forwardPosKinematics(angles)
+        rot = forwardKinematicsRotation(angles)
+        initial_points = self.get_control_points(p2,p4,rot)
+        
+        return initial_points
+    
+    def get_goal_points(self, goal_pose):
+        angles = inverseKinematics(goal_pose)
+        p1,p2,p4,p6 = forwardPosKinematics(angles)
+        rot = forwardKinematicsRotation(angles)
+        goal_points = self.get_control_points(p2,p4,rot)
+        
+        return goal_points
+        
+    def get_attr_vecs(self, current_points, goal_points):
+        size = current_points.shape[0]
+        attr_vecs = np.zeros((size,3))
+        r = np.zeros(size)
+        
+        for i in range(0,size):
+            attr_vecs[i] = goal_points[i] - current_points[i]
+            r[i] = np.linalg.norm(attr_vecs[i]) #normalize them
+            if r[i] > 0:
+                attr_vecs[i] /= r[i]
+            
+        return attr_vecs, np.linalg.norm(r)
+    
+    def get_current_state(self,angles):
+        
+        p1,p2,p4,p6 = forwardPosKinematics(angles)
+        rot = forwardKinematicsRotation(angles)
+        
+        control_points = self.get_control_points(p2, p4, rot)
+        
+        size = control_points.shape[0]
+        r = np.zeros(size)
+        rep_vecs = np.zeros((size,3))
+        
+        if(self.obstacles.size > 0):
+            for i in range(0, size):
+                for box in self.obstacles:
+                    r, temp_vec = box.check_colission(control_points[i],self.radius) 
+                    if r < self.cut_off and r > 0: 
+                        rep_vecs[i] -= temp_vec/(r*r) #- because check_collision gives the vector pointing TOWARDS the obstacle, we want the repulsive vector
+                    elif r == 0:
+                        self.collision = True
+                    
+                        
+        for i in range(0, size):
+            r = np.linalg.norm(rep_vecs[i])
+            if r > 0:
+                rep_vecs[i] /= r
+                
+        attr_vecs, dist = self.get_attr_vecs(control_points, self.goal_points)
+        
+        return rep_vecs, attr_vecs, dist
+    
+    def step(self, action):
+        
+        self.c_a = self.update_angles(self.c_a, action)
+        
+        rep_vecs, attr_vecs, dist = self.get_current_state(self.c_a)
+        
+        delta_dist = self.prev_dist - dist
+        self.prev_dist = dist
+        
+        done = False
+        observation = np.append(rep_vecs, attr_vecs)
+        reward = np.sign(delta_dist)
+        
+        self.animation_steps += 1
+        self.animation_angles = np.vstack(self.animation_angles, self.c_a)
+        
+        if self.collision:
+            return observation, -100, True 
+        
+        if dist < 5:
+            reward += 300
+            done = True
+        
+        return observation, reward, done
