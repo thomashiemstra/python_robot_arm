@@ -17,18 +17,23 @@ box2.plot(ax)
 
 obstacles = np.array([box1,box2])
 
-animation = animateArm(fig,ax)
+
+def draw_initial_world(obstacles, fig, ax, initial_pose, target_pose):
+    animation = animateArm(fig,ax)
+    animation.set_obstacles(obstacles)
+    animation.draw_arm(initial_pose)
+    
+    animation2 = animateArm(fig,ax)
+    animation2.set_obstacles(obstacles)
+    animation2.draw_arm(target_pose)
 
 position = np.array([-20,25,10])
-pose = pose3D(position, True)
-animation.draw_arm(pose, 'r')
-
-
-animation2 = animateArm(fig,ax)
+initial_pose = pose3D(position, True)
 
 position = np.array([20,25,10])
-pose = pose3D(position, True)
-animation2.draw_arm(pose)
+target_pose = pose3D(position, True)
+    
+draw_initial_world(obstacles, fig, ax, initial_pose, target_pose)
 
 #animation.set_obstacles(obstacles)
 #

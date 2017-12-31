@@ -234,16 +234,32 @@ class animateArm:
         return np.linalg.norm(r)
     
     
-    def draw_arm(self, pose, color='b'):
+    def draw_arm(self, pose):
         angles = inverseKinematics(pose)
         p1,p2,p4,p6 = forwardPosKinematics(angles)
         rot = forwardKinematicsRotation(angles)
         g00,g11,g12,g21,g22 = self.getGripper(rot)
         
-        self.set_arm(p1,p2,p4,g00,g11,g12,g21,g22)
-        self.gripR.set_color(color)
-        self.gripL.set_color(color)
-        self.arm.set_color(color)
+        collisionPoints = self.set_arm(p1,p2,p4,g00,g11,g12,g21,g22)
+        
+        self.gripR.set_color('b')
+        self.gripL.set_color('b')
+        self.arm.set_color('b')
+        
+        size = collisionPoints.shape[0]
+        if(self.obstacles.size > 0):
+            for i in range(0, size):
+                for box in self.obstacles:
+                    r, temp_vec = box.check_colission(collisionPoints[i],self.radius) 
+                    if(r == 0):
+                        self.gripR.set_color('r')
+                        self.gripL.set_color('r')
+                        self.arm.set_color('r')
+        
+        
+
+        
+        
         
     
     def animate(self, i):
