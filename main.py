@@ -15,7 +15,7 @@ box.plot(ax)
 
 obstacles = np.array([box])
 
-animation = animateArm(fig,ax, radius = 100)
+animation = animateArm(fig,ax, radius = 0.0)
 
 animation.set_obstacles(obstacles)
 

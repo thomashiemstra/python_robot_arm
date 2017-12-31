@@ -72,38 +72,40 @@ class box:
     
     def check_colission(self, r_point, radius=0.0):
         r_prime = self.get_r_prime(r_point)
-        print(r_prime)
         x = r_prime[0]
         y = r_prime[1]
         z = r_prime[2]
         L, W, H = self.size
         
         if x < 0:
-            dx = np.maximum(-x + radius, 0) #dx > 0 means collision due to radius of point
+            dx = np.minimum(x + radius, 0.0)
         elif x > L:
-            dx = np.minimum(L - x + radius,0) #dx < 0 means collision due to radius of point
+            dx = np.maximum((x - radius) - L, 0.0)
         else:
-            dx = 0
-            
+            dx = 0.0
+        
         if y < 0:
-            dy = np.maximum(-y + radius, 0) #dy > 0 means collision due to radius of point
+            dy = np.minimum(y + radius, 0.0)
         elif y > W:
-            dy = np.minimum(L - y + radius,0) #dy < 0 means collision due to radius of point
+            dy = np.maximum((y - radius) - W, 0.0)
         else:
-            dy = 0
+            dy = 0.0
             
         if z < 0:
-            dz = np.maximum(-z + radius, 0) #dz > 0 means collision due to radius of point
+            dz = np.minimum(z + radius, 0.0)
         elif z > H:
-            dz = np.minimum(L - z + radius,0) #dz < 0 means collision due to radius of point
+            dz = np.maximum((z - radius) - H, 0.0)
         else:
-            dz = 0
-        
+            dz = 0.0
+            
         r = sqrt(dx*dx + dy*dy + dz*dz)
         if r > 0.0001:
             return r, np.array([dx/r,dy/r,dz/r])
         else:
             return 0,np.array([0,0,0])
+
+
+
 
 
 def plot_world():
@@ -124,17 +126,6 @@ def plot_world():
 
 class animateArm:
 
-#    def __init__(self, start_pose, stop_pose, ax, fig, steps=100, radius=5):
-#        self.ax = ax
-#        self.fig = fig
-#        self.start = start_pose
-#        self.stop = stop_pose
-#        self.arm, = self.ax.plot([], [], [], 'yo-', lw=2)
-#        self.gripL, = self.ax.plot([], [], [], 'yo-', lw=2)
-#        self.gripR, = self.ax.plot([], [], [], 'yo-', lw=2)
-#        self.lines = [self.arm,self.gripL,self.gripR]
-#        self.steps = steps
-#        self.radius=radius
     obstacles = np.array([])
         
     cut_off = 5.0 
@@ -296,6 +287,7 @@ class animateArm:
             if r > 0:
                 vec[i] /= r
         
+        print(vec[5])
 
         
 #        dist = self.get_attr_vecs(collisionPoints, self.goal_points)
@@ -306,6 +298,11 @@ class animateArm:
     
     def runAnimation(self):
         return animation.FuncAnimation(self.fig, self.animate, 200, interval=25)
+    
+    
+    
+    
+    
     
     
     def set_animation_angles(self, animation_angles):
@@ -436,7 +433,7 @@ class env:
                 for box in self.obstacles:
                     r, temp_vec = box.check_colission(control_points[i],self.radius) 
                     if r < self.cut_off and r > 0: 
-                        rep_vecs[i] -= temp_vec/(r*r) #- because check_collision gives the vector pointing TOWARDS the obstacle, we want the repulsive vector
+                        rep_vecs[i] += temp_vec/(r*r) 
                     elif r == 0:
                         self.collision = True
                     
