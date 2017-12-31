@@ -287,8 +287,6 @@ class animateArm:
             if r > 0:
                 vec[i] /= r
         
-        print(vec[5])
-
         
 #        dist = self.get_attr_vecs(collisionPoints, self.goal_points)
 #        print(dist)
@@ -298,8 +296,6 @@ class animateArm:
     
     def runAnimation(self):
         return animation.FuncAnimation(self.fig, self.animate, 200, interval=25)
-    
-    
     
     
     
@@ -338,34 +334,44 @@ class animateArm:
 
 #--------------------------------------------------------------------------------------------------------------------------------------------
 
-class env:
+class simulation:
     alpha = 0.01 #amount by which to update the angels in radians
-
-    def __init__(self,initial_pose, goal_pose, radius = 0.0):
-        self.initial_pose = initial_pose
-        self.collision = False
-        self.steps_taken = 0
-        self.c_a = inverseKinematics(self.initial_pose)
-        self.initial_points = self.get_initial_points(initial_pose)
-        self.goal_points = self.get_goal_points(goal_pose)
-        self.radius = radius #radius of all the control points
-        
-        self.animation_angles = np.array(self.c_a)
-        
-        attr_vecs, attr_r = self.get_attr_vecs(self.initial_points, self.goal_points)
-        self.prev_dist = attr_r
+    cut_off = 5.0
     
-    def set_obstacles(self, obstacles):
+    def __init__(self,initial_pose, goal_pose, obstacles, radius = 0.0):
+        self.initial_pose = initial_pose
+        self.goal_pose = goal_pose
+        self.radius = radius #radius of all the control points
         self.obstacles = obstacles
         
+        self.collision = False
+        self.steps_taken = 0
+        self.c_a = inverseKinematics(self.initial_pose) #current angles
+        
+        self.initial_points = self.get_initial_points(self.initial_pose)
+        self.goal_points = self.get_goal_points(self.goal_pose)
+        attr_vecs, attr_r = self.get_attr_vecs(self.initial_points, self.goal_points)
+        self.prev_dist = attr_r
+        
+        self.animation_angles = np.array(self.c_a)
+    
+       
+    def start(self):
+        zero_action = np.zeros(6)
+        observation, reward, done = self.step(zero_action)
+        return observation
+    
     def clamp(self, angle, min_angle, max_angle):
         return np.clip(angle, min_angle, max_angle)
     
     #input current_angles and delta_angles
     def update_angles(self, c_a, d_a):
+        
         c_a[1] = self.clamp(c_a[1] + self.alpha*d_a[0],0,pi)
         c_a[2] = self.clamp(c_a[2] + self.alpha*d_a[1],0,pi)
-        c_a[3] = self.clamp(c_a[3] + self.alpha*d_a[2],0,pi)
+        
+        c_a[3] = self.clamp(c_a[3] + self.alpha*d_a[2],-pi/2,pi/2)
+        
         c_a[4] = self.clamp(c_a[4] + self.alpha*d_a[3],-pi,pi)
         c_a[5] = self.clamp(c_a[5] + self.alpha*d_a[4],-pi,pi)
         c_a[6] = self.clamp(c_a[6] + self.alpha*d_a[5],-pi,pi)
@@ -384,8 +390,7 @@ class env:
         temp = np.array([0,2,d6/2], dtype = np.float64)
         g22 = rot.dot(temp)
         
-        p5 = p4 + g00
-        
+        p5 = p4 + g00        
         return np.array([p3, p4, p5+g11, p5+g12, p5+g21, p5+g22])
     
     def get_initial_points(self, initial_pose):
@@ -414,15 +419,17 @@ class env:
             r[i] = np.linalg.norm(attr_vecs[i]) #normalize them
             if r[i] > 0:
                 attr_vecs[i] /= r[i]
-            
+        
         return attr_vecs, np.linalg.norm(r)
     
+    
     def get_current_state(self,angles):
-        
+
         p1,p2,p3,p4,p6 = forwardPosKinematics(angles)
+        
         rot = forwardKinematicsRotation(angles)
         
-        control_points = self.get_control_points(p2, p4, rot)
+        control_points = self.get_control_points(p3, p4, rot)
         
         size = control_points.shape[0]
         r = np.zeros(size)
@@ -441,36 +448,40 @@ class env:
             r = np.linalg.norm(rep_vecs[i])
             if r > 0:
                 rep_vecs[i] /= r
-                
-        attr_vecs, dist = self.get_attr_vecs(control_points, self.goal_points)
+        
+        attr_vecs, dist = self.get_attr_vecs(control_points, self.goal_points)        
         
         return rep_vecs, attr_vecs, dist
     
+    
     def step(self, action):
+
         self.c_a = self.update_angles(self.c_a, action)
-        
-        rep_vecs, attr_vecs, dist = self.get_current_state(self.c_a)
-        
-        delta_dist = self.prev_dist - dist
-        self.prev_dist = dist
-        
-        done = False
+
+        #get the observation based on the current angles
+        rep_vecs, attr_vecs, dist = self.get_current_state(self.c_a) 
+        print(rep_vecs)
         observation = np.append(rep_vecs, attr_vecs)
         
-#        reward = np.sign(delta_dist)
+        #get the reward based on the current action
+        delta_dist = self.prev_dist - dist
         reward = delta_dist
-#        self.animation_steps += 1
-#        self.animation_angles = np.vstack(self.animation_angles, self.c_a)
+        self.prev_dist = dist
+                
+        done = False
         
+        #collision means STOP NOW!
         if self.collision:
             return observation, -100, True 
         
+        #close enough to target is good enough
         if dist < 10:
             reward += 300
             done = True
         
+        #if it takes too long, we stop but don't punish for it
         self.steps_taken += 1
-        if self.step_taken > 300:
+        if self.steps_taken > 300:
             done = True
         
         return observation, reward, done
