@@ -7,11 +7,11 @@ from kinematics import pose3D
 import gym
 
 
-#def bitarray(n, base):
-#    temp = np.array([1 if digit=='1' else 0 for digit in bin(n)[2:]])
-#    res = np.zeros(base)
-#    res[0:temp.size] = temp
-#    return res
+def bitarray(n, base):
+    temp = np.array([1 if digit=='1' else 0 for digit in bin(n)[2:]])
+    res = np.zeros(base)
+    res[0:temp.size] = temp
+    return res
 #        
 #
 #
@@ -54,7 +54,7 @@ obstacles = np.array([box])
 #animation.set_obstacles(obstacles)
 #animation.draw_arm(initial_pose)
 
-position = np.array([-9,25,10])
+position = np.array([-20,25,10])
 initial_pose = pose3D(position, True)
 
 
@@ -70,6 +70,8 @@ sim.setup_animation(fig,ax)
 sim.draw_arm(initial_pose)
 
 observation = sim.start()
+
+print(observation.size)
 
 
 np.set_printoptions(threshold=np.inf)

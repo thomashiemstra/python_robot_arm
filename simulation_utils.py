@@ -342,7 +342,6 @@ class simulation:
         self.radius = radius #radius of all the control points
         self.obstacles = obstacles
         
-        self.collision = False
         self.steps_taken = 0
         self.c_a = inverseKinematics(self.initial_pose) #current angles
         p1,p2,p3,p4,p6 = forwardPosKinematics(self.c_a)
@@ -356,8 +355,10 @@ class simulation:
         self.prev_dist = attr_r
         
     def start(self):
-        zero_action = np.zeros(6)
-        observation, reward, done = self.step(zero_action)
+        rep_vecs, rep_forces, attr_vecs, dist, collision = self.get_current_state(self.c_a) 
+        observation = rep_vecs.ravel()
+        observation = np.append(observation,rep_forces)
+        observation = np.append(observation,attr_vecs.ravel())
         return observation
     
     def setup_animation(self, fig,ax):
@@ -383,13 +384,17 @@ class simulation:
     
     #input current_angles and delta_angles
     def update_angles(self, c_a, d_a):
+        #we get 1's and 0's but we need 1's and -1's
+        for i in range(0,d_a.size):
+            if d_a[i] == 0:
+                d_a[i] = -1
+        
         c_a[1] = self.clamp(c_a[1] + self.alpha*d_a[0],0,pi)
         c_a[2] = self.clamp(c_a[2] + self.alpha*d_a[1],0,pi)
         c_a[3] = self.clamp(c_a[3] + self.alpha*d_a[2],-pi/2,pi/2)
         c_a[4] = self.clamp(c_a[4] + self.alpha*d_a[3],-pi,pi)
         c_a[5] = self.clamp(c_a[5] + self.alpha*d_a[4],-pi,pi)
 #        c_a[6] = self.clamp(c_a[6] + self.alpha*d_a[5],-pi,pi)
-        
         return c_a
         
     def get_attr_vecs(self, current_points, goal_points):
@@ -414,6 +419,9 @@ class simulation:
         rep_vecs = np.zeros((size,3))
         rep_forces = np.zeros(size)
         
+        collision = False
+        
+        #check obstacle collision and calculate repulsive vectors
         if(self.obstacles.size > 0):
             for i in range(0, size):
                 for box in self.obstacles:
@@ -422,9 +430,26 @@ class simulation:
                         rep_vecs[i] += temp_vec/(r*r) 
                         rep_forces[i] = self.clamp(1/(r*r),0,1)
                     elif r == 0:
-                        self.collision = True
+                        collision = True
 
+        #limit the arm to it's workspace by checking if p6 is within the workspace sphere
+        max_range = 47.0
+        max_index = size - 1
+        r = np.linalg.norm(control_points[max_index])
         
+        if (max_range - (r + self.radius)) < self.cut_off:
+            rep_vecs[max_index] -= control_points[max_index] #pull it back towards the origiin
+            
+        if  (r + self.radius) > max_range:
+            collision = True
+            
+        #check collision with the ground
+        for i in range(0, size):
+            z = control_points[i][2]
+            if z < 2 and z > 0:
+                rep_vecs[i] += [0,0,1/(z*z)] 
+            if z < 0:
+                collision = True
         
         for i in range(0, size):
             r = np.linalg.norm(rep_vecs[i])
@@ -433,37 +458,46 @@ class simulation:
                 
         attr_vecs, dist = self.get_attr_vecs(control_points, self.goal_points)        
         
-        return rep_vecs, rep_forces, attr_vecs, dist
+        return rep_vecs, rep_forces, attr_vecs, dist, collision
     
-    
+    def bitarray(self, n, base):
+        temp = np.array([1 if digit=='1' else 0 for digit in bin(n)[2:]])
+        res = np.zeros(base)
+        res[0:temp.size] = temp
+        return res
+
     def step(self, action):
-        self.c_a = self.update_angles(self.c_a, action)
-        
+        update = self.bitarray(action,5)
+        self.c_a = self.update_angles(self.c_a, update)
+        reward = 0
         #get the observation based on the current angles
-        rep_vecs, rep_forces, attr_vecs, dist = self.get_current_state(self.c_a) 
+        rep_vecs, rep_forces, attr_vecs, dist, collision = self.get_current_state(self.c_a) 
         observation = rep_vecs.ravel()
         observation = np.append(observation,rep_forces)
         observation = np.append(observation,attr_vecs.ravel())
         
+        #if collision we stop immediately and punish for it
+        if collision:
+            return observation, -100, True
+        
         #get the reward based on the current action
         delta_dist = self.prev_dist - dist
-        reward = delta_dist
+        reward += delta_dist
         self.prev_dist = dist
-                
-        done = False
-        
-        #collision means STOP NOW!
-        if self.collision:
-            return observation, -100, True 
-        
-        #close enough to target is good enough
-        if dist < 10:
-            reward += 300
-            done = True
         
         #if it takes too long, we stop but don't punish for it
         self.steps_taken += 1
+        
+        done = False
+        
         if self.steps_taken > 300:
+            done = True
+        
+        #close enough to target is good enough
+        if dist < 5:
+            factor = self.steps_taken/300.0 
+            reward += 200.0/factor
+            reward += 200
             done = True
         
         return observation, reward, done

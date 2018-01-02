@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 import random
-import gym
 import numpy as np
 from collections import deque
 from keras.models import Sequential
 from keras.layers import Dense
 from keras.optimizers import Adam
 from keras import backend as K
+from simulation_utils import box, simulation
+from kinematics import pose3D
 
 EPISODES = 5000
 
@@ -33,8 +34,8 @@ class DQNAgent:
     def _build_model(self):
         # Neural Net for Deep-Q learning Model
         model = Sequential()
-        model.add(Dense(24, input_dim=self.state_size, activation='relu'))
-        model.add(Dense(24, activation='relu'))
+        model.add(Dense(36, input_dim=self.state_size, activation='relu'))
+        model.add(Dense(36, activation='relu'))
         model.add(Dense(self.action_size, activation='linear'))
         model.compile(loss=self._huber_loss,
                       optimizer=Adam(lr=self.learning_rate))
@@ -73,23 +74,32 @@ class DQNAgent:
     def save(self, name):
         self.model.save_weights(name)
 
-
 if __name__ == "__main__":
-    env = gym.make('CartPole-v1')
-    state_size = env.observation_space.shape[0]
-    action_size = env.action_space.n
+    box = box([10,10,30], pos=[-5,20,0])   
+    obstacles = np.array([box])
+    
+    position = np.array([-20,25,10])
+    initial_pose = pose3D(position, True)
+    
+    position = np.array([20,25,10])
+    target_pose = pose3D(position, True)
+
+    sim = simulation(initial_pose, target_pose, obstacles, radius = 5)
+    
+    state_size = 21
+    action_size = 32
     agent = DQNAgent(state_size, action_size)
     # agent.load("./save/cartpole-ddqn.h5")
     done = False
-    batch_size = 32
+    batch_size = 50
 
     for e in range(EPISODES):
-        state = env.reset()
+        state = sim.start()
         state = np.reshape(state, [1, state_size])
         for time in range(500):
             # env.render()
             action = agent.act(state)
-            next_state, reward, done, _ = env.step(action)
+            next_state, reward, done = sim.step(action)
             reward = reward if not done else -10
             next_state = np.reshape(next_state, [1, state_size])
             agent.remember(state, action, reward, next_state, done)
@@ -102,4 +112,4 @@ if __name__ == "__main__":
         if len(agent.memory) > batch_size:
             agent.replay(batch_size)
             if e % 100 == 0:
-                agent.save("./save/cartpole-ddqn_" + str(e) + ".h5")
+                agent.save("./save/obstacle_avoidance-ddqn.h5")
