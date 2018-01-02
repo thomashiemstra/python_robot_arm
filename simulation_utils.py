@@ -351,10 +351,13 @@ class simulation:
         p1,p2,p3,p4,p6 = forwardPosKinematics(angles)
         self.goal_points = np.array([p3,p4,p6])
         
-        attr_vecs, attr_r = self.get_attr_vecs(self.initial_points, self.goal_points)
-        self.prev_dist = attr_r
+        attr_vecs, self.attr_r = self.get_attr_vecs(self.initial_points, self.goal_points)
+        self.prev_dist = self.attr_r
         
-    def start(self):
+    def reset(self):
+#        self.steps_taken = 0
+#        self.c_a = inverseKinematics(self.initial_pose) #current angles
+#        self.prev_dist = self.attr_r
         rep_vecs, rep_forces, attr_vecs, dist, collision = self.get_current_state(self.c_a) 
         observation = rep_vecs.ravel()
         observation = np.append(observation,rep_forces)
@@ -490,12 +493,12 @@ class simulation:
         
         done = False
         
-        if self.steps_taken > 300:
+        if self.steps_taken > 400:
             done = True
         
         #close enough to target is good enough
         if dist < 5:
-            factor = self.steps_taken/300.0 
+            factor = self.steps_taken/400.0 
             reward += 200.0/factor
             reward += 200
             done = True
