@@ -456,8 +456,8 @@ class simulation:
             z = control_points[i][2]
             if z < self.cut_off and z > 0.001:
                 force = self.clamp(1/(z*z),0,1)
-                rep_vecs[i] += [0,0,force] 
-                rep_forces[i] = force
+                rep_vecs[i] += [0,0,1/(z*z)]
+                rep_forces[i] = np.maximum(force, rep_forces[i])
             if z < 0:
                 collision = True
         
@@ -489,13 +489,9 @@ class simulation:
         reward += delta_dist
         self.prev_dist = dist
         
-        #if it takes too long, we stop but don't punish for it
         self.steps_taken += 1
         
         done = False
-        
-#        if self.steps_taken > 450:
-#            done = True
         
         #close enough to target is good enough
         if dist < 5:
@@ -529,20 +525,4 @@ class simulation:
     
         
         return np.reshape(animation_angles, (-1,7))
-    
-    
-#a = np.array([1, 2, 3])
-#b = np.array([1, 2, 3])
-#c = np.array([1, 2, 3])
-#d = np.array([1, 2, 3])
-#
-#
-#a = np.append(a,b)
-#a = np.append(a,c)
-#a = np.append(a,d)
-#
-#a = np.reshape(a, (-1,3))
-#
-#print(a)
-        
         

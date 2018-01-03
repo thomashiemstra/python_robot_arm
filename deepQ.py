@@ -18,10 +18,10 @@ class DQNAgent:
         self.action_size = action_size
         self.memory = deque(maxlen=50000)
         self.gamma = 0.90    # discount rate
-        self.epsilon = 1.0  # exploration rate
+        self.epsilon = 0.8  # exploration rate
         self.epsilon_min = 0.1
-        self.epsilon_decay = 0.999
-        self.learning_rate = 0.001
+        self.epsilon_decay = 0.99
+        self.learning_rate = 0.005
         self.model = self._build_model()
         self.target_model = self._build_model()
         self.update_target_model()
@@ -54,7 +54,7 @@ class DQNAgent:
         act_values = self.model.predict(state)
         return np.argmax(act_values[0])  # returns action
 
-    def replay(self, batch_size):
+    def replay(self, batch_size, e):
         minibatch = random.sample(self.memory, batch_size)
         for state, action, reward, next_state, done in minibatch:
             target = self.model.predict(state)
@@ -65,8 +65,9 @@ class DQNAgent:
                 t = self.target_model.predict(next_state)[0]
                 target[0][action] = reward + self.gamma * t[np.argmax(a)]
             self.model.fit(state, target, epochs=1, verbose=0)
-        if self.epsilon > self.epsilon_min:
-            self.epsilon *= self.epsilon_decay
+        if e % 10 == 0:
+            if self.epsilon > self.epsilon_min:
+                self.epsilon *= self.epsilon_decay
 
     def load(self, name):
         self.model.load_weights(name)
@@ -114,6 +115,6 @@ if __name__ == "__main__":
                           .format(e, EPISODES, score, agent.epsilon))
                 break
         if len(agent.memory) > batch_size:
-            agent.replay(batch_size)
+            agent.replay(batch_size, e)
             if e % 1000 == 0:
                 agent.save("./save/obstacle_avoidance-ddqn_episode_" + str(e) + "_.h5")
