@@ -4,21 +4,37 @@ environ['MPLBACKEND'] = 'module://gr.matplotlib.backend_gr'
 from simulation_utils import box, plot_world, animateArm, simulation
 import numpy as np
 from kinematics import pose3D
-import gym
+from keras.models import Sequential
+from keras.layers import Dense
+from keras.optimizers import Adam
+from keras import backend as K
+
+state_size = 21
+action_size = 32
+learning_rate = 0.001
+
+def huber_loss(target, prediction):
+    # sqrt(1+error^2)-1
+    error = prediction - target
+    return K.mean(K.sqrt(1+K.square(error))-1, axis=-1)
+
+def build_model():
+    # Neural Net for Deep-Q learning Model
+    model = Sequential()
+    model.add(Dense(36, input_dim=state_size, activation='relu'))
+    model.add(Dense(36, activation='relu'))
+    model.add(Dense(action_size, activation='linear'))
+    model.compile(loss=huber_loss,
+                  optimizer=Adam(lr=learning_rate))
+    return model
 
 
-def bitarray(n, base):
-    temp = np.array([1 if digit=='1' else 0 for digit in bin(n)[2:]])
-    res = np.zeros(base)
-    res[0:temp.size] = temp
-    return res
-#        
-#
-#
-#
-#
-#
-#
+
+model = build_model()
+name = "./save/obstacle_avoidance-ddqn_episode_98000_score_21.8455119609_cut_off_2_.h5"
+model.load_weights(name)
+
+
 fig, ax = plot_world()
 
 box = box([10,10,30], pos=[-5,20,0])
@@ -27,52 +43,28 @@ box.plot(ax)
 obstacles = np.array([box])
 
 
-
-#animation = animateArm(fig,ax, radius = 3.0)
-#
-#animation.set_obstacles(obstacles)
-#
-#ani = animation.runAnimation()
-
-
-#def draw_initial_world(obstacles, fig, ax, initial_pose, target_pose, radius = 0.0):
-#    animation = animateArm(fig,ax, radius=radius)
-#    animation.set_obstacles(obstacles)
-#    animation.draw_arm(initial_pose)
-#    
-#    animation2 = animateArm(fig,ax, radius=radius)
-#    animation2.set_obstacles(obstacles)
-#    animation2.draw_arm(target_pose)
-#
-#
-#
-
-#
-
-#
-#animation = animateArm(fig,ax, radius=radius)
-#animation.set_obstacles(obstacles)
-#animation.draw_arm(initial_pose)
-
 position = np.array([-20,25,10])
 initial_pose = pose3D(position, True)
 
-
 position = np.array([20,25,10])
 target_pose = pose3D(position, True)
-#    
-#draw_initial_world(obstacles, fig, ax, initial_pose, target_pose, radius =4.0)
-
-radius = 2
-
-sim = simulation(initial_pose, target_pose, obstacles, radius = radius)
-sim.setup_animation(fig,ax)
-sim.draw_arm(initial_pose)
-
-observation = sim.start()
-
-print(observation.size)
 
 
-np.set_printoptions(threshold=np.inf)
+sim = simulation(initial_pose, target_pose, obstacles, radius = 5)
+#sim.setup_animation(fig,ax)
+#sim.draw_arm(initial_pose)
+
+angles = sim.generate_animation_angles(model)
+
+#print(angles)
+steps = angles.shape[0]
+
+
+
+animation = animateArm(fig,ax)
+animation.set_animation_angles(angles, steps)
+
+an = animation.runAnimation_angles()
+
+
 

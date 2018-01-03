@@ -12,15 +12,14 @@ from datetime import datetime
 
 
 
-
 class DQNAgent:
     def __init__(self, state_size, action_size):
         self.state_size = state_size
         self.action_size = action_size
-        self.memory = deque(maxlen=2000)
+        self.memory = deque(maxlen=50000)
         self.gamma = 0.90    # discount rate
         self.epsilon = 1.0  # exploration rate
-        self.epsilon_min = 0.05
+        self.epsilon_min = 0.1
         self.epsilon_decay = 0.999
         self.learning_rate = 0.001
         self.model = self._build_model()
@@ -76,7 +75,7 @@ class DQNAgent:
         self.model.save_weights(name)
 
 if __name__ == "__main__":
-    EPISODES = 100000
+    EPISODES = 10000000
     
     box = box([10,10,30], pos=[-5,20,0])   
     obstacles = np.array([box])
@@ -90,13 +89,14 @@ if __name__ == "__main__":
     state_size = 21
     action_size = 32
     agent = DQNAgent(state_size, action_size)
-    # agent.load("./save/cartpole-ddqn.h5")
+    agent.load("./save/obstacle_avoidance-ddqn_episode_99000_score_-88.6969851585_cut_off_5_.h5")
     done = False
     batch_size = 50
     
-    startTime = datetime.now()
+    cut_off = 5
+
     for e in range(EPISODES):
-        sim = simulation(initial_pose, target_pose, obstacles, radius = 5)
+        sim = simulation(initial_pose, target_pose, obstacles, radius = 5.0, cut_off = cut_off)
         state = sim.reset()
         state = np.reshape(state, [1, state_size])
         score = 0
@@ -116,6 +116,4 @@ if __name__ == "__main__":
         if len(agent.memory) > batch_size:
             agent.replay(batch_size)
             if e % 1000 == 0:
-                agent.save("./save/obstacle_avoidance-ddqn_episode_" + str(e) + "_score_" + str(score) +  "_.h5")
-                
-    print("it took:",datetime.now() - startTime)
+                agent.save("./save/obstacle_avoidance-ddqn_episode_" + str(e) + "_.h5")

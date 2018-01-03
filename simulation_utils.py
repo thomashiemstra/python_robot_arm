@@ -299,8 +299,9 @@ class animateArm:
         return animation.FuncAnimation(self.fig, self.animate, 200, interval=25)
     
     
-    def set_animation_angles(self, animation_angles):
+    def set_animation_angles(self, animation_angles, steps):
         self.animation_angles = animation_angles
+        self.steps = steps
     
     def animate_angles(self, i):
         angles = self.animation_angles[i]
@@ -329,14 +330,18 @@ class animateArm:
         return self.lines
 
 
+    def runAnimation_angles(self):
+        return animation.FuncAnimation(self.fig, self.animate_angles, self.steps, interval=50)
+
 
 #--------------------------------------------------------------------------------------------------------------------------------------------
 
 class simulation:
     alpha = 0.01 #amount by which to update the angels in radians
-    cut_off = 5.0
+   
     
-    def __init__(self,initial_pose, goal_pose, obstacles, radius = 0.0):
+    def __init__(self,initial_pose, goal_pose, obstacles, radius = 0.0, cut_off = 0.0):
+        self. cut_off = cut_off
         self.initial_pose = initial_pose
         self.goal_pose = goal_pose
         self.radius = radius #radius of all the control points
@@ -449,8 +454,10 @@ class simulation:
         #check collision with the ground
         for i in range(0, size):
             z = control_points[i][2]
-            if z < 2 and z > 0:
-                rep_vecs[i] += [0,0,1/(z*z)] 
+            if z < self.cut_off and z > 0.001:
+                force = self.clamp(1/(z*z),0,1)
+                rep_vecs[i] += [0,0,force] 
+                rep_forces[i] = force
             if z < 0:
                 collision = True
         
@@ -462,12 +469,6 @@ class simulation:
         attr_vecs, dist = self.get_attr_vecs(control_points, self.goal_points)        
         
         return rep_vecs, rep_forces, attr_vecs, dist, collision
-    
-    def bitarray(self, n, base):
-        temp = np.array([1 if digit=='1' else 0 for digit in bin(n)[2:]])
-        res = np.zeros(base)
-        res[0:temp.size] = temp
-        return res
 
     def step(self, action):
         update = self.bitarray(action,5)
@@ -493,32 +494,55 @@ class simulation:
         
         done = False
         
-        if self.steps_taken > 400:
-            done = True
+#        if self.steps_taken > 450:
+#            done = True
         
         #close enough to target is good enough
         if dist < 5:
-            factor = self.steps_taken/400.0 
-            reward += 200.0/factor
-            reward += 200
+            factor = self.steps_taken/500.0 
+            reward += 250.0/factor
+            reward += 250
             done = True
         
         return observation, reward, done
     
+    def bitarray(self, n, base):
+        temp = np.array([1 if digit=='1' else 0 for digit in bin(n)[2:]])
+        res = np.zeros(base)
+        res[0:temp.size] = temp
+        return res
     
-    def generate_animation_angles(self, winner_net):
-        pass
-#            animation_angles = np.array(self.c_a)
-#        self.c_a = inverseKinematics(self.initial_pose)
-#    
-#        zero_action = np.zeros(6)
-#        observation, reward, done = self.step(zero_action)
-#        
-#        while not done:
-#            action = winner_net.activate(observation)
-#            observation, reward, done = self.step(action)
-#            animation_angles = np.vstack(animation_angles, self.c_a)
-#        
-#        return self.animation_angles
+    def generate_animation_angles(self, model):
+        self.c_a = inverseKinematics(self.initial_pose)
+        animation_angles = self.c_a
+        print(animation_angles)
+        state_size = 21
+        state = self.reset()
+        
+        done = False
+        while not done:
+            state = np.reshape(state, [1, state_size])
+            act_values = model.predict(state)
+            action = np.argmax(act_values[0])
+            state, reward, done = self.step(action)
+            animation_angles = np.append(animation_angles,self.c_a)
+    
+        
+        return np.reshape(animation_angles, (-1,7))
+    
+    
+#a = np.array([1, 2, 3])
+#b = np.array([1, 2, 3])
+#c = np.array([1, 2, 3])
+#d = np.array([1, 2, 3])
+#
+#
+#a = np.append(a,b)
+#a = np.append(a,c)
+#a = np.append(a,d)
+#
+#a = np.reshape(a, (-1,3))
+#
+#print(a)
         
         
