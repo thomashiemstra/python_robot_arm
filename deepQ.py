@@ -109,7 +109,7 @@ if __name__ == "__main__":
             state = next_state
             if done:
                 agent.update_target_model()
-                if e % 10 == 0:
+                if e % 100 == 0:
                     print("episode: {}/{}, score: {}, e: {:.2}"
                           .format(e, EPISODES, score, agent.epsilon))
                 break

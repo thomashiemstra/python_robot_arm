@@ -31,7 +31,7 @@ def build_model():
 
 
 model = build_model()
-name = "./save/obstacle_avoidance-ddqn_episode_98000_score_21.8455119609_cut_off_2_.h5"
+name = "./save/obstacle_avoidance-ddqn_episode_99000_score_-88.6969851585_cut_off_5_.h5"
 model.load_weights(name)
 
 
