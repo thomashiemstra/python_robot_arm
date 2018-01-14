@@ -337,7 +337,7 @@ class animateArm:
 #--------------------------------------------------------------------------------------------------------------------------------------------
 
 class simulation:
-    alpha = 0.01 #amount by which to update the angels in radians
+    alpha = 0.005 #amount by which to update the angels in radians
    
     
     def __init__(self,initial_pose, goal_pose, obstacles, radius = 0.0, cut_off = 0.0):
@@ -396,7 +396,7 @@ class simulation:
         for i in range(0,d_a.size):
             if d_a[i] == 0:
                 d_a[i] = -1
-        
+
         c_a[1] = self.clamp(c_a[1] + self.alpha*d_a[0],0,pi)
         c_a[2] = self.clamp(c_a[2] + self.alpha*d_a[1],0,pi)
         c_a[3] = self.clamp(c_a[3] + self.alpha*d_a[2],-pi/2,pi/2)
@@ -415,18 +415,15 @@ class simulation:
             r[i] = np.linalg.norm(attr_vecs[i]) #normalize them
             if r[i] > 0:
                 attr_vecs[i] /= r[i]
-        
         return attr_vecs, np.linalg.norm(r)
     
     def get_current_state(self,angles):
         p1,p2,p3,p4,p6 = forwardPosKinematics(angles)
-        
         control_points = np.array([p3,p4,p6])
-
         size = control_points.shape[0]
         rep_vecs = np.zeros((size,3))
         rep_forces = np.zeros(size)
-        
+
         collision = False
         
         #check obstacle collision and calculate repulsive vectors
@@ -439,7 +436,7 @@ class simulation:
                         rep_forces[i] = self.clamp(1/(r*r),0,1)
                     elif r == 0:
                         collision = True
-
+                        
         #limit the arm to it's workspace by checking if p6 is within the workspace sphere
         max_range = 47.0
         max_index = size - 1
@@ -476,6 +473,7 @@ class simulation:
         reward = 0
         #get the observation based on the current angles
         rep_vecs, rep_forces, attr_vecs, dist, collision = self.get_current_state(self.c_a) 
+       
         observation = rep_vecs.ravel()
         observation = np.append(observation,rep_forces)
         observation = np.append(observation,attr_vecs.ravel())
@@ -486,12 +484,20 @@ class simulation:
         
         #get the reward based on the current action
         delta_dist = self.prev_dist - dist
-        reward += delta_dist
+        if delta_dist > 0:
+            reward = 4*delta_dist
+        else:
+            reward = delta_dist
+            
         self.prev_dist = dist
+        
+        
+        done = False
         
         self.steps_taken += 1
         
-        done = False
+        if self.steps_taken > 400:
+            done = True
         
         #close enough to target is good enough
         if dist < 5:
@@ -499,7 +505,10 @@ class simulation:
             reward += 250.0/factor
             reward += 250
             done = True
-        
+    
+        if reward > 0 and reward < 0.05:
+            reward = -0.05
+    
         return observation, reward, done
     
     def bitarray(self, n, base):
@@ -511,18 +520,15 @@ class simulation:
     def generate_animation_angles(self, model):
         self.c_a = inverseKinematics(self.initial_pose)
         animation_angles = self.c_a
-        print(animation_angles)
         state_size = 21
         state = self.reset()
-        
         done = False
         while not done:
             state = np.reshape(state, [1, state_size])
             act_values = model.predict(state)
             action = np.argmax(act_values[0])
             state, reward, done = self.step(action)
-            animation_angles = np.append(animation_angles,self.c_a)
-    
-        
+            animation_angles = np.append(animation_angles, self.c_a)       
+            print( action)
         return np.reshape(animation_angles, (-1,7))
         

@@ -25,32 +25,31 @@ def build_model():
     model.add(Dense(36, activation='relu'))
     model.add(Dense(action_size, activation='linear'))
     model.compile(loss=huber_loss,
-                  optimizer=Adam(lr=learning_rate))
+                  optimizer=Adam(lr=0.01))
     return model
 
 
 
 model = build_model()
-name = "./save/obstacle_avoidance-ddqn_episode_99000_score_-88.6969851585_cut_off_5_.h5"
+name = "./save/obstacle_avoidance-ddqn_episode_3000_.h5"
 model.load_weights(name)
 
 
 fig, ax = plot_world()
 
-box = box([10,10,30], pos=[-5,20,0])
-box.plot(ax)
+obstacles = np.array([])
 
-obstacles = np.array([box])
-
-
-position = np.array([-20,25,10])
+position = np.array([-10,25,10])
 initial_pose = pose3D(position, True)
 
-position = np.array([20,25,10])
+position = np.array([0,25,10])
 target_pose = pose3D(position, True)
 
+#box.plot(ax)
 
-sim = simulation(initial_pose, target_pose, obstacles, radius = 5)
+
+cut_off = 5
+sim = simulation(initial_pose, target_pose, obstacles, radius = 5.0, cut_off = cut_off)
 #sim.setup_animation(fig,ax)
 #sim.draw_arm(initial_pose)
 
@@ -58,7 +57,7 @@ angles = sim.generate_animation_angles(model)
 
 #print(angles)
 steps = angles.shape[0]
-
+print(steps)
 
 
 animation = animateArm(fig,ax)

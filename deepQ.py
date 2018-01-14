@@ -8,17 +8,15 @@ from keras.optimizers import Adam
 from keras import backend as K
 from simulation_utils import box, simulation
 from kinematics import pose3D
-from datetime import datetime
-
-
+#from datetime import datetime
 
 class DQNAgent:
     def __init__(self, state_size, action_size):
         self.state_size = state_size
         self.action_size = action_size
         self.memory = deque(maxlen=50000)
-        self.gamma = 0.90    # discount rate
-        self.epsilon = 0.8  # exploration rate
+        self.gamma = 0.95    # discount rate
+        self.epsilon = 1  # exploration rate
         self.epsilon_min = 0.1
         self.epsilon_decay = 0.99
         self.learning_rate = 0.005
@@ -78,21 +76,22 @@ class DQNAgent:
 if __name__ == "__main__":
     EPISODES = 10000000
     
-    box = box([10,10,30], pos=[-5,20,0])   
-    obstacles = np.array([box])
+#    box = box([10,10,30], pos=[-5,20,0])   
+#    obstacles = np.array([box])
+    obstacles = np.array([])
     
-    position = np.array([-20,25,10])
+    position = np.array([-10,25,10])
     initial_pose = pose3D(position, True)
     
-    position = np.array([20,25,10])
+    position = np.array([10,25,10])
     target_pose = pose3D(position, True)
     
     state_size = 21
     action_size = 32
     agent = DQNAgent(state_size, action_size)
-    agent.load("./save/obstacle_avoidance-ddqn_episode_99000_score_-88.6969851585_cut_off_5_.h5")
+#    agent.load("./save/obstacle_avoidance-ddqn_episode_99000_score_-88.6969851585_cut_off_5_.h5")
     done = False
-    batch_size = 50
+    batch_size = 32
     
     cut_off = 5
 
@@ -101,7 +100,8 @@ if __name__ == "__main__":
         state = sim.reset()
         state = np.reshape(state, [1, state_size])
         score = 0
-        for time in range(500):
+        done = False
+        for _ in range(0,500):
             action = agent.act(state)
             next_state, reward, done = sim.step(action)
             score += reward
@@ -110,10 +110,10 @@ if __name__ == "__main__":
             state = next_state
             if done:
                 agent.update_target_model()
-                if e % 100 == 0:
-                    print("episode: {}/{}, score: {}, e: {:.2}"
-                          .format(e, EPISODES, score, agent.epsilon))
                 break
+        if e % 10 == 0:
+            print("episode: {}/{}, score: {}, e: {}"
+                  .format(e, EPISODES, score, agent.epsilon))
         if len(agent.memory) > batch_size:
             agent.replay(batch_size, e)
             if e % 1000 == 0:
