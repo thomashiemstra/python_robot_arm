@@ -338,15 +338,15 @@ class animateArm:
 
 class simulation:
     alpha = 0.005 #amount by which to update the angels in radians
-   
     
     def __init__(self,initial_pose, goal_pose, obstacles, radius = 0.0, cut_off = 0.0):
-        self. cut_off = cut_off
         self.initial_pose = initial_pose
         self.goal_pose = goal_pose
-        self.radius = radius #radius of all the control points
         self.obstacles = obstacles
+        self.radius = radius #radius of all the control points
+        self. cut_off = cut_off
         
+    def reset(self):
         self.steps_taken = 0
         self.c_a = inverseKinematics(self.initial_pose) #current angles
         p1,p2,p3,p4,p6 = forwardPosKinematics(self.c_a)
@@ -359,10 +359,6 @@ class simulation:
         attr_vecs, self.attr_r = self.get_attr_vecs(self.initial_points, self.goal_points)
         self.prev_dist = self.attr_r
         
-    def reset(self):
-#        self.steps_taken = 0
-#        self.c_a = inverseKinematics(self.initial_pose) #current angles
-#        self.prev_dist = self.attr_r
         rep_vecs, rep_forces, attr_vecs, dist, collision = self.get_current_state(self.c_a) 
         observation = rep_vecs.ravel()
         observation = np.append(observation,rep_forces)
