@@ -21,8 +21,8 @@ def huber_loss(target, prediction):
 def build_model():
     # Neural Net for Deep-Q learning Model
     model = Sequential()
-    model.add(Dense(36, input_dim=state_size, activation='relu'))
-    model.add(Dense(36, activation='relu'))
+    model.add(Dense(32, input_dim=state_size, activation='relu'))
+    model.add(Dense(64, activation='relu'))
     model.add(Dense(action_size, activation='linear'))
     model.compile(loss=huber_loss,
                   optimizer=Adam(lr=0.01))
@@ -31,8 +31,10 @@ def build_model():
 
 
 model = build_model()
-name = "./save/obstacle_avoidance-ddqn_episode_3000_.h5"
+name = "./save/obstacle_avoidance-ddqn_episode_10000_.h5"
 model.load_weights(name)
+
+
 
 
 fig, ax = plot_world()
@@ -42,7 +44,7 @@ obstacles = np.array([])
 position = np.array([-10,25,10])
 initial_pose = pose3D(position, True)
 
-position = np.array([0,25,10])
+position = np.array([10,25,10])
 target_pose = pose3D(position, True)
 
 #box.plot(ax)
@@ -53,11 +55,12 @@ sim = simulation(initial_pose, target_pose, obstacles, radius = 5.0, cut_off = c
 #sim.setup_animation(fig,ax)
 #sim.draw_arm(initial_pose)
 
-angles = sim.generate_animation_angles(model)
+
+angles, score = sim.generate_animation_angles(model)
 
 #print(angles)
 steps = angles.shape[0]
-print(steps)
+#print(score)
 
 
 animation = animateArm(fig,ax)
