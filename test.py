@@ -65,5 +65,6 @@ if __name__ == "__main__":
     env = gym.make('CartPole-v1')
     state_size = env.observation_space.shape[0]
     action_size = env.action_space.n
-    print(env.action_space.n)
+    print(np.random.uniform(-1,0,20))
+    
     

@@ -37,7 +37,7 @@ model.load_weights(name)
 
 
 
-fig, ax = plot_world()
+#fig, ax = plot_world()
 
 obstacles = np.array([])
 
@@ -52,21 +52,22 @@ target_pose = pose3D(position, True)
 
 cut_off = 5
 sim = simulation(initial_pose, target_pose, obstacles, radius = 5.0, cut_off = cut_off)
+sim.reset()
 #sim.setup_animation(fig,ax)
 #sim.draw_arm(initial_pose)
 
 
-angles, score = sim.generate_animation_angles(model)
-
-#print(angles)
-steps = angles.shape[0]
-#print(score)
-
-
-animation = animateArm(fig,ax)
-animation.set_animation_angles(angles, steps)
-
-an = animation.runAnimation_angles()
+#angles, score = sim.generate_animation_angles(model)
+#
+##print(angles)
+#steps = angles.shape[0]
+##print(score)
+#
+#
+#animation = animateArm(fig,ax)
+#animation.set_animation_angles(angles, steps)
+#
+#an = animation.runAnimation_angles()
 
 
 

@@ -115,6 +115,7 @@ class box:
 def plot_world():
     fig = plt.figure()
     ax = Axes3D(fig)
+    
     ax.set_xlim(-20, 20)
     ax.set_ylim(0, 40)
     ax.set_zlim(0, 40)
@@ -358,10 +359,11 @@ class simulation:
         self.prev_dist = self.initial_dist
         self.halfway = False
 
-        rep_vecs, rep_forces, attr_vecs, dist, collision = self.get_current_state(self.c_a)
+        rep_vecs, rep_forces, attr_vecs, dist_3D, dist, collision = self.get_current_state(self.c_a)
         observation = rep_vecs.ravel()
         observation = np.append(observation, rep_forces)
         observation = np.append(observation, attr_vecs.ravel())
+        observation = np.append(observation, dist_3D.ravel())        
         return observation
 
     def setup_animation(self, fig, ax):
@@ -403,13 +405,10 @@ class simulation:
     def get_3d_dist(self, current_points, goal_points):
         size = current_points.shape[0]
         dist_3D = np.zeros((size, 3))
-        
         for i in range(0, size):
-            dist_3D[i] = (goal_points[i] - current_points[i])/40.0
+            dist_3D[i] = np.absolute((goal_points[i] - current_points[i])/40.0)
         
-        return dist_3D[i]
-
-
+        return dist_3D
 
     def get_attr_vecs(self, current_points, goal_points):
         size = current_points.shape[0]
@@ -469,22 +468,25 @@ class simulation:
             r = np.linalg.norm(rep_vecs[i])
             if r > 0:
                 rep_vecs[i] /= r
+                
+        dist_3D = self.get_3d_dist(control_points, self.goal_points)
 
         attr_vecs, dist = self.get_attr_vecs(control_points, self.goal_points)
 
-        return rep_vecs, rep_forces, attr_vecs, dist, collision
+        return rep_vecs, rep_forces, attr_vecs, dist_3D, dist, collision
 
     def step(self, action):
         update = self.bitarray(action, 5)
         self.c_a = self.update_angles(self.c_a, update)
         reward = 0
         # get the observation based on the current angles
-        rep_vecs, rep_forces, attr_vecs, dist, collision = self.get_current_state(self.c_a)
+        rep_vecs, rep_forces, attr_vecs, dist_3D, dist, collision = self.get_current_state(self.c_a)
 
         observation = rep_vecs.ravel()
         observation = np.append(observation, rep_forces)
         observation = np.append(observation, attr_vecs.ravel())
-
+        observation = np.append(observation, dist_3D.ravel())
+        
         # if collision we stop immediately and punish for it
         if collision:
             return observation, -100, True

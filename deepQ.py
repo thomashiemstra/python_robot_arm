@@ -34,9 +34,9 @@ class DQNAgent:
     def _build_model(self):
         # Neural Net for Deep-Q learning Model
         model = Sequential()
-        model.add(Dense(32, input_dim=self.state_size, activation='relu'))
-        model.add(Dense(64, activation='relu'))
-        model.add(Dense(self.action_size, activation='linear'))
+        model.add(Dense(1024, input_dim=self.state_size, activation='relu'))
+        model.add(Dense(512, activation='relu'))
+        model.add(Dense(self.action_size))
         model.compile(loss=self._huber_loss,
                       optimizer=Adam(lr=self.learning_rate))
         return model
@@ -88,7 +88,7 @@ if __name__ == "__main__":
     position = np.array([10, 25, 10])
     target_pose = pose3D(position, True)
 
-    state_size = 21
+    state_size = 30
     action_size = 32
     agent = DQNAgent(state_size, action_size)
     #    agent.load("./save/obstacle_avoidance-ddqn_episode_99000_score_-88.6969851585_cut_off_5_.h5")
