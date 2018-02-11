@@ -6,6 +6,8 @@ from collections import deque
 from keras.models import Sequential
 from keras.layers import Dense
 from keras.optimizers import Adam
+from simulation_utils import box, simulation
+from kinematics import pose3D
 
 EPISODES = 1000
 
@@ -62,9 +64,21 @@ class DQNAgent:
 
 
 if __name__ == "__main__":
-    env = gym.make('CartPole-v1')
-    state_size = env.observation_space.shape[0]
-    action_size = env.action_space.n
-    print(np.random.uniform(-1,0,20))
-    
-    
+    obstacles = np.array([])
+    position = np.array([-10, 25, 10])
+    initial_pose = pose3D(position, True)
+    position = np.array([10, 25, 10])
+    target_pose = pose3D(position, True)
+    cut_off = 5
+    env = simulation(initial_pose, target_pose, obstacles, radius=5.0, cut_off=cut_off)
+
+    dataX = np.random.random((5, 35))
+
+    predX = np.zeros(shape=(1, 30))
+    print(dataX.shape[1])
+
+    # env = gym.make('CartPole-v1')
+    # env.reset()
+    #
+    # print(env.step(env.action_space.sample()))
+

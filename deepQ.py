@@ -17,7 +17,7 @@ class DQNAgent:
         self.state_size = state_size
         self.action_size = action_size
         self.memory = deque(maxlen=50000)
-        self.gamma = 0.95  # discount rate
+        self.gamma = 0.90  # discount rate
         self.epsilon = 1  # exploration rate
         self.epsilon_min = 0.05
         self.epsilon_decay = 0.995
@@ -93,7 +93,7 @@ if __name__ == "__main__":
     agent = DQNAgent(state_size, action_size)
     #    agent.load("./save/obstacle_avoidance-ddqn_episode_99000_score_-88.6969851585_cut_off_5_.h5")
     done = False
-    batch_size = 32
+    batch_size = 64
 
     cut_off = 5
     sim = simulation(initial_pose, target_pose, obstacles, radius=5.0, cut_off=cut_off)
