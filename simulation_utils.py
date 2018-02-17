@@ -16,6 +16,7 @@ class box:
         self.pos = pos
         self.angle = angle
         self.color = color
+        self.L, self.W, self.H = self.size
 
     def setColor(self, color):
         self.color = color
@@ -77,39 +78,31 @@ class box:
 
         return np.asarray(R.dot(r_temp))
 
-    def check_colission(self, r_point, radius=0.0):
+    def check_colission(self, r_point, radius=0.001):
         r_prime = self.get_r_prime(r_point)
-        x = r_prime[0]
-        y = r_prime[1]
-        z = r_prime[2]
-        L, W, H = self.size
 
-        if x < 0:
-            dx = np.minimum(x + radius, 0.0)
-        elif x > L:
-            dx = np.maximum((x - radius) - L, 0.0)
-        else:
+        if self.L > r_prime[0] > 0:
             dx = 0.0
-
-        if y < 0:
-            dy = np.minimum(y + radius, 0.0)
-        elif y > W:
-            dy = np.maximum((y - radius) - W, 0.0)
         else:
+            dx = r_prime[0]
+            
+        if self.W > r_prime[1] > 0:
             dy = 0.0
-
-        if z < 0:
-            dz = np.minimum(z + radius, 0.0)
-        elif z > H:
-            dz = np.maximum((z - radius) - H, 0.0)
         else:
+            dy = r_prime[1]    
+        
+        if self.H > r_prime[2] > 0:
             dz = 0.0
-
-        r = sqrt(dx * dx + dy * dy + dz * dz)
-        if r > 0.0001:
+        else:
+            dz = r_prime[2]   
+            
+        r = np.linalg.norm(np.array([dx,dy,dz]))
+        
+        if r > radius:
             return r, np.array([dx / r, dy / r, dz / r])
         else:
             return 0, np.array([0, 0, 0])
+
 
 
 def plot_world():
@@ -131,9 +124,7 @@ def plot_world():
 
 class animateArm:
     obstacles = np.array([])
-
-    cut_off = 5.0
-
+    
     def __init__(self, fig, ax, radius=0.0):
         self.ax = ax
         self.fig = fig
@@ -226,23 +217,25 @@ class animateArm:
         rot = forwardKinematicsRotation(angles)
         g00, g11, g12, g21, g22 = self.getGripper(rot)
 
-        collisionPoints = self.set_arm(p1, p3, p2, p4, g00, g11, g12, g21, g22)
+        self.set_arm(p1, p3, p2, p4, g00, g11, g12, g21, g22)
+        collisionPoints = np.array([p3, p4, p6])
 
         self.arm.set_color('b')
         self.gripR.set_color('b')
         self.gripL.set_color('b')
 
         size = collisionPoints.shape[0]
-
-        if (self.obstacles.size > 0):
+                       
+        if self.obstacles.size > 0:
             for i in range(0, size):
-                for box in self.obstacles:
-                    r, temp_vec = box.check_colission(collisionPoints[i], self.radius)
-                    if (r == 0):
-                        self.gripR.set_color('r')
-                        self.gripL.set_color('r')
-                        self.arm.set_color('r')
-
+                for BOX in self.obstacles:
+                    if i == 2:
+                        r, temp_vec = BOX.check_colission(collisionPoints[i], self.radius)
+                        if (r == 0):
+                            self.gripR.set_color('r')
+                            self.gripL.set_color('r')
+                            self.arm.set_color('r')                
+        
         return self.lines
 
     def runAnimation_angles(self):
@@ -252,14 +245,17 @@ class animateArm:
 # --------------------------------------------------------------------------------------------------------------------------------------------
 
 class simulation:
-    alpha = 0.005  # amount by which to update the angels in radians
-
-    prev_dist = 0.0
-    initial_dist = 0.0
-    initial_points = np.zeros((3, 3), dtype=np.float32)
-    goal_points = np.zeros((3, 3), dtype=np.float32)
+    alpha = 0.05  #maximum amount by which to update the angels in radians
+    num_control_points = 3
+            
+    initial_points = np.zeros((num_control_points, 3), dtype=np.float32)
+    goal_points = np.zeros((num_control_points, 3), dtype=np.float32)
+    prev_dist_arr = np.zeros(num_control_points, dtype=np.float32)
+    initial_dist = np.zeros(num_control_points, dtype=np.float32)
     c_a = np.zeros(7, dtype=np.float32)
+    quarter_way = False
     halfway = False
+    almost_there = False
 
     def __init__(self, initial_pose, goal_pose, obstacles, radius=0.0, cut_off=0.0):
         self.initial_pose = initial_pose
@@ -279,34 +275,18 @@ class simulation:
         p1, p2, p3, p4, p6 = forwardPosKinematics(angles)
         self.goal_points = np.array([p3, p4, p6])
 
-        attr_vecs, self.initial_dist = self.get_attr_vecs(self.initial_points, self.goal_points)
-        self.prev_dist = self.initial_dist
-        self.halfway = False
+        attr_vecs, self.initial_dist_arr = self.get_attr_vecs(self.initial_points, self.goal_points)
+        self.prev_dist_arr = self.initial_dist_arr
+        self.quarter_way_arr = [False, False, False]
+        self.halfway_arr = [False, False, False]
+        self.almost_there_arr = [False, False, False]
 
-        rep_vecs, rep_forces, attr_vecs, dist_3D, dist, collision = self.get_current_state(self.c_a)
+        rep_vecs, rep_forces, attr_vecs, dist_3D, dist_arr, collision = self.get_current_state(self.c_a)
         observation = rep_vecs.ravel()
         observation = np.append(observation, rep_forces)
         observation = np.append(observation, attr_vecs.ravel())
         observation = np.append(observation, dist_3D.ravel())
         return observation
-
-    def setup_animation(self, fig, ax):
-        self.ax = ax
-        self.fig = fig
-        self.arm, = self.ax.plot([], [], [], 'yo-', lw=2)
-
-    def set_arm(self, p1, p2, p4, p6):
-        thisx = [0, p1[0], p2[0], p4[0], p6[0]]
-        thisy = [0, p1[1], p2[1], p4[1], p6[1]]
-        thisz = [0, p1[2], p2[2], p4[2], p6[2]]
-        self.arm.set_data(thisx, thisy)
-        self.arm.set_3d_properties(thisz)
-
-    def draw_arm(self, pose):
-        angles = inverseKinematics(pose)
-        p1, p2, p3, p4, p6 = forwardPosKinematics(angles)
-        self.set_arm(p1, p2, p4, p6)
-        self.get_current_state(angles)
 
     @staticmethod
     def random_action():
@@ -343,11 +323,13 @@ class simulation:
 
         for i in range(0, size):
             attr_vecs[i] = goal_points[i] - current_points[i]
-            r[i] = np.linalg.norm(attr_vecs[i])  # normalize them
+            r[i] = np.linalg.norm(attr_vecs[i])  
             if r[i] > 0:
-                attr_vecs[i] /= r[i]
-
-        return attr_vecs, np.linalg.norm(r)
+                attr_vecs[i] /= r[i] # normalize them
+            if r[i] < 2:
+                attr_vecs[i] *= r[i]*2
+                
+        return attr_vecs, r
 
     def get_current_state(self, angles):
         p1, p2, p3, p4, p6 = forwardPosKinematics(angles)
@@ -397,18 +379,19 @@ class simulation:
 
         dist_3D = self.get_3d_dist(control_points, self.goal_points)
 
-        attr_vecs, dist = self.get_attr_vecs(control_points, self.goal_points)
+        attr_vecs, dist_arr = self.get_attr_vecs(control_points, self.goal_points)
 
-        return rep_vecs, rep_forces, attr_vecs, dist_3D, dist, collision
+        return rep_vecs, rep_forces, attr_vecs, dist_3D, dist_arr, collision
 
     def step(self, action):
-
+        reward = 0.0
+        
         for i in range(5):
             action[i] = self.clamp(action[i], -1, 1)
 
         self.c_a = self.update_angles(self.c_a, action)
         # get the observation based on the current angles
-        rep_vecs, rep_forces, attr_vecs, dist_3D, dist, collision = self.get_current_state(self.c_a)
+        rep_vecs, rep_forces, attr_vecs, dist_3D, dist_arr, collision = self.get_current_state(self.c_a)
 
         observation = rep_vecs.ravel()
         observation = np.append(observation, rep_forces)
@@ -417,37 +400,62 @@ class simulation:
 
         # if collision we stop immediately and punish for it
         if collision:
-            return observation, -100, True, {}
-
-        # get the reward based on the current action
-        delta_dist = self.prev_dist - dist
-        reward = delta_dist
-
-        if not self.halfway:
-            if dist < self.initial_dist / 2:
-                reward += 100
-                self.halfway = True
-
-        self.prev_dist = dist
+            return observation, -30, True, {}
 
         done = False
-
+        
         self.steps_taken += 1
-
-        if self.steps_taken > 200:
+        if self.steps_taken > 150:
             done = True
-
+        
+        # get the reward based on the current action
+        # the distance to the goal is checked per control point
+        delta_dist = np.zeros(self.num_control_points, dtype=np.float32)
+        
+        for i in range(0, self.num_control_points):
+            delta_dist[i] = self.prev_dist_arr[i] - dist_arr[i]
+    
+            reward += delta_dist[i]
+            
+            if not self.quarter_way:
+                if dist_arr[i] < 3*self.initial_dist_arr[i] / 4:
+                    reward += 25
+                    self.quarter_way_arr[i] = True
+    
+            if not self.halfway:
+                if dist_arr[i] < self.initial_dist_arr[i] / 2:
+                    reward += 25
+                    self.halfway_arr[i] = True
+    
+            if not self.almost_there:
+                if dist_arr[i] < self.initial_dist_arr[i] / 4:
+                    reward += 25
+                    self.almost_there_arr[i] = True
+    
+            self.prev_dist_arr[i] = dist_arr[i]
+    
+    
+        collective_dist = np.linalg.norm(dist_arr)        
+        
         # close enough to target is good enough
-        if dist < 10:
-            factor = self.steps_taken / 500.0
-            reward += 250.0 / factor
-            reward += 250
+        if collective_dist < 2:
+            factor = self.steps_taken / 100.0
+            reward += 50.0 / factor
+            reward += 100
             done = True
+            print("goal reached!!!!!!!!!!")
 
-        if 0 < reward < 0.05:
-            reward = -0.05
+
 
         return observation, reward, done, {}
+
+    def get_action(self, qstate, model, state_size):
+        predX = np.zeros(shape=(1, state_size))
+        predX[0] = qstate
+        # print("trying to predict reward at qs_a", predX[0])
+        pred = model.predict(predX[0].reshape(1, predX.shape[1]))
+        return pred[0]
+
 
     def generate_animation_angles(self, model):
         self.c_a = inverseKinematics(self.initial_pose)
@@ -457,11 +465,8 @@ class simulation:
         done = False
         score = 0
         while not done:
-            state = np.reshape(state, [1, state_size])
-            act_values = model.predict(state)
-            action = np.argmax(act_values[0])
-            print(action)
-            state, reward, done = self.step(action)
+            action = self.get_action(state, model, state_size)
+            state, reward, done, _ = self.step(action)
             score += reward
             animation_angles = np.append(animation_angles, self.c_a)
         return np.reshape(animation_angles, (-1, 7)), score

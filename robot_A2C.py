@@ -13,7 +13,6 @@ Improved hyper parameters for better performance
 from simulation_utils import box, simulation
 from kinematics import pose3D
 import numpy as np
-import gym
 import os
 import matplotlib.pyplot as plt
 
@@ -32,15 +31,15 @@ apWeights_filename = "obstacle-avoidance-v1-weights-ap.h5"
 # range within wich the SmartCrossEntropy action parameters will deviate from
 # remembered optimal policy
 sce_range = 0.2
-b_discount = 0.98
-max_memory_len = 90000
+b_discount = 0.85
+max_memory_len = 5000
 starting_explore_prob = 0.20
 training_epochs = 4
 mini_batch = 256
 load_previous_weights = False
 observe_and_train = True
 save_weights = True
-num_games_to_play = 6000
+num_games_to_play = 20000
 
 # One hot encoding array
 possible_actions = np.arange(0, num_env_actions)
@@ -48,13 +47,14 @@ actions_1_hot = np.zeros((num_env_actions, num_env_actions))
 actions_1_hot[np.arange(num_env_actions), possible_actions] = 1
 
 # Create testing enviroment
-obstacles = np.array([])
+box = box([10, 10, 40], pos=[-5, 25, 0])
+obstacles = np.array([box])
 position = np.array([-10, 25, 10])
 initial_pose = pose3D(position, True)
 position = np.array([10, 25, 10])
 target_pose = pose3D(position, True)
-cut_off = 5
-env = simulation(initial_pose, target_pose, obstacles, radius=5.0, cut_off=cut_off)
+cut_off = 4
+env = simulation(initial_pose, target_pose, obstacles, radius=2.0, cut_off=cut_off)
 
 env.reset()
 
@@ -149,6 +149,7 @@ if observe_and_train:
         gameS = np.zeros(shape=(1, num_env_variables))
         gameA = np.zeros(shape=(1, num_env_actions))
         gameR = np.zeros(shape=(1, 1))
+        total_reward = 0
         # Get the Q state
         qs = env.reset()
         # print("qs ", qs)
@@ -197,7 +198,8 @@ if observe_and_train:
             # get the target state and reward
             s, r, done, info = env.step(a)
             # record only the first x number of states
-
+            total_reward += r
+            
             if step == 0:
                 gameSA[0] = qs_a
                 gameS[0] = qs
@@ -208,9 +210,6 @@ if observe_and_train:
                 gameS = np.vstack((gameS, qs))
                 gameR = np.vstack((gameR, np.array([r])))
                 gameA = np.vstack((gameA, np.array([a])))
-
-            if step > 797:
-                done = True
 
             if done:
                 # Calculate Q values from end to start of game
@@ -227,7 +226,7 @@ if observe_and_train:
                         # print("reward at step",i,"away from the end is",gameY[(gameY.shape[0]-1)-i][0])
                     if i == gameR.shape[0] - 1:
                         print("Training Game #", game, "memory ", memoryR.shape[0], " steps = ", step, "last reward", r,
-                              " finished with headscore ", gameR[(gameR.shape[0] - 1) - i][0])
+                              " finished with score ", total_reward)
 
                 if memoryR.shape[0] == 1:
                     memorySA = gameSA
@@ -254,7 +253,7 @@ if observe_and_train:
             # Retrain every X failures after num_initial_observation
             if done and game >= num_initial_observation:
                 if game % 5 == 0:
-                    print("Training  game# ", game, "momory size", memorySA.shape[0])
+                    print("Training  game# ", game, "memory size", memorySA.shape[0])
 
                     # training Reward predictor model
                     Qmodel.fit(memorySA, memoryR, batch_size=mini_batch, epochs=training_epochs, verbose=0)
