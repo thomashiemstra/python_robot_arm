@@ -220,21 +220,20 @@ class animateArm:
         self.set_arm(p1, p3, p2, p4, g00, g11, g12, g21, g22)
         collisionPoints = np.array([p3, p4, p6])
 
-        self.arm.set_color('b')
-        self.gripR.set_color('b')
-        self.gripL.set_color('b')
+        self.arm.set_color('y')
+        self.gripR.set_color('y')
+        self.gripL.set_color('y')
 
         size = collisionPoints.shape[0]
                        
         if self.obstacles.size > 0:
             for i in range(0, size):
                 for BOX in self.obstacles:
-                    if i == 2:
-                        r, temp_vec = BOX.check_colission(collisionPoints[i], self.radius)
-                        if (r == 0):
-                            self.gripR.set_color('r')
-                            self.gripL.set_color('r')
-                            self.arm.set_color('r')                
+                    r, temp_vec = BOX.check_colission(collisionPoints[i], self.radius)
+                    if (r == 0):
+                        self.gripR.set_color('r')
+                        self.gripL.set_color('r')
+                        self.arm.set_color('r')                
         
         return self.lines
 
@@ -245,13 +244,14 @@ class animateArm:
 # --------------------------------------------------------------------------------------------------------------------------------------------
 
 class simulation:
-    alpha = 0.05  #maximum amount by which to update the angels in radians
+    alpha = 0.1  #maximum amount by which to update the angels in radians
     num_control_points = 3
             
     initial_points = np.zeros((num_control_points, 3), dtype=np.float32)
     goal_points = np.zeros((num_control_points, 3), dtype=np.float32)
     prev_dist_arr = np.zeros(num_control_points, dtype=np.float32)
     initial_dist = np.zeros(num_control_points, dtype=np.float32)
+    obs_dist_arr = np.zeros(num_control_points, dtype=np.float32)
     c_a = np.zeros(7, dtype=np.float32)
     quarter_way = False
     halfway = False
@@ -270,6 +270,7 @@ class simulation:
         self.c_a = inverseKinematics(self.initial_pose)  # current angles
         p1, p2, p3, p4, p6 = forwardPosKinematics(self.c_a)
         self.initial_points = np.array([p3, p4, p6])
+        self.prev_pos_norm = np.linalg.norm(self.initial_points)
 
         angles = inverseKinematics(self.goal_pose)
         p1, p2, p3, p4, p6 = forwardPosKinematics(angles)
@@ -280,12 +281,21 @@ class simulation:
         self.quarter_way_arr = [False, False, False]
         self.halfway_arr = [False, False, False]
         self.almost_there_arr = [False, False, False]
+        self.goal_reached_arr = [False, False, False]
+        self.reward_factor = 2
 
         rep_vecs, rep_forces, attr_vecs, dist_3D, dist_arr, collision = self.get_current_state(self.c_a)
+        self.prev_collective_dist = np.linalg.norm(dist_arr)
         observation = rep_vecs.ravel()
-        observation = np.append(observation, rep_forces)
+#        observation = np.append(observation, rep_forces)
         observation = np.append(observation, attr_vecs.ravel())
         observation = np.append(observation, dist_3D.ravel())
+                
+        for i in range(0,3):
+            self.obs_dist_arr[i] = (dist_arr[i] / 20.0)
+        
+        observation = np.append(observation, self.obs_dist_arr.ravel())
+        
         return observation
 
     @staticmethod
@@ -320,20 +330,35 @@ class simulation:
         size = current_points.shape[0]
         attr_vecs = np.zeros((size, 3))
         r = np.zeros(size)
+        
+        cut_off = 4.0
+        #when the control get's too close we reduce it's attractive vector by F(x)=e^(ax^2) - 1 with F(cut_off) = 1 and F(0) = 0
+        a = np.log(2)/(cut_off*cut_off)
 
         for i in range(0, size):
             attr_vecs[i] = goal_points[i] - current_points[i]
             r[i] = np.linalg.norm(attr_vecs[i])  
             if r[i] > 0:
                 attr_vecs[i] /= r[i] # normalize them
-            if r[i] < 2:
-                attr_vecs[i] *= r[i]*2
+            if r[i] < cut_off:
+                attr_vecs[i] *= np.exp(a*r[i]*r[i]) - 1
                 
         return attr_vecs, r
 
     def get_current_state(self, angles):
         p1, p2, p3, p4, p6 = forwardPosKinematics(angles)
         control_points = np.array([p3, p4, p6])
+        
+#        pos_norm = np.linalg.norm(control_points)
+#        collective_distance_traveled = self.prev_pos_norm - pos_norm
+#        
+#        if collective_distance_traveled > 0.1:
+#            reward = 1
+#        else:
+#            reward = -1
+#        
+#        self.prev_pos_norm = pos_norm
+        
         size = control_points.shape[0]
         rep_vecs = np.zeros((size, 3))
         rep_forces = np.zeros(size)
@@ -350,7 +375,7 @@ class simulation:
                         rep_forces[i] = self.clamp(1 / (r * r), 0, 1)
                     elif r == 0:
                         collision = True
-
+                        
         # limit the arm to it's workspace by checking if p6 is within the workspace sphere
         max_range = 47.0
         max_index = size - 1
@@ -378,74 +403,85 @@ class simulation:
                 rep_vecs[i] /= r
 
         dist_3D = self.get_3d_dist(control_points, self.goal_points)
-
+        
         attr_vecs, dist_arr = self.get_attr_vecs(control_points, self.goal_points)
 
         return rep_vecs, rep_forces, attr_vecs, dist_3D, dist_arr, collision
 
-    def step(self, action):
-        reward = 0.0
-        
+    def step(self, action):      
         for i in range(5):
             action[i] = self.clamp(action[i], -1, 1)
-
+        reward = 0.0
         self.c_a = self.update_angles(self.c_a, action)
         # get the observation based on the current angles
         rep_vecs, rep_forces, attr_vecs, dist_3D, dist_arr, collision = self.get_current_state(self.c_a)
 
         observation = rep_vecs.ravel()
-        observation = np.append(observation, rep_forces)
+#        observation = np.append(observation, rep_forces)
         observation = np.append(observation, attr_vecs.ravel())
         observation = np.append(observation, dist_3D.ravel())
+        
+        for i in range(0,3):
+            self.obs_dist_arr[i] = (dist_arr[i] / 20.0)
+        
+        observation = np.append(observation, self.obs_dist_arr.ravel())
 
+        collective_dist = np.linalg.norm(dist_arr)
+        
+        reward += self.reward_factor*(self.prev_collective_dist - collective_dist)
+        
+        self.prev_collective_dist = collective_dist
+        
+        
         # if collision we stop immediately and punish for it
         if collision:
-            return observation, -30, True, {}
+            return observation, -500, True, {}
 
         done = False
         
         self.steps_taken += 1
-        if self.steps_taken > 150:
+        if self.steps_taken > 200:
+            print("collective_dist= ", collective_dist)
             done = True
         
         # get the reward based on the current action
         # the distance to the goal is checked per control point
         delta_dist = np.zeros(self.num_control_points, dtype=np.float32)
-        
+                
         for i in range(0, self.num_control_points):
             delta_dist[i] = self.prev_dist_arr[i] - dist_arr[i]
     
-            reward += delta_dist[i]
+            reward += self.reward_factor*delta_dist[i]
             
-            if not self.quarter_way:
+            if not self.quarter_way_arr[i]:
                 if dist_arr[i] < 3*self.initial_dist_arr[i] / 4:
                     reward += 25
                     self.quarter_way_arr[i] = True
     
-            if not self.halfway:
+            if not self.halfway_arr[i]:
                 if dist_arr[i] < self.initial_dist_arr[i] / 2:
                     reward += 25
                     self.halfway_arr[i] = True
     
-            if not self.almost_there:
+            if not self.almost_there_arr[i]:
                 if dist_arr[i] < self.initial_dist_arr[i] / 4:
                     reward += 25
                     self.almost_there_arr[i] = True
-    
-            self.prev_dist_arr[i] = dist_arr[i]
-    
-    
-        collective_dist = np.linalg.norm(dist_arr)        
-        
+            
+            # as long as a point is close to it's goal we get an extra reward
+            if dist_arr[i] < 2:
+                reward += 0.5
+                                              
+                    
+        self.prev_dist_arr = dist_arr
+            
         # close enough to target is good enough
-        if collective_dist < 2:
+        if collective_dist < 3:
             factor = self.steps_taken / 100.0
-            reward += 50.0 / factor
+            reward += 300.0 / factor
             reward += 100
             done = True
             print("goal reached!!!!!!!!!!")
-
-
 
         return observation, reward, done, {}
 
@@ -458,10 +494,9 @@ class simulation:
 
 
     def generate_animation_angles(self, model):
-        self.c_a = inverseKinematics(self.initial_pose)
-        animation_angles = self.c_a
         state_size = 30
         state = self.reset()
+        animation_angles = self.c_a
         done = False
         score = 0
         while not done:

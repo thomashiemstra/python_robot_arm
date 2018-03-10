@@ -1,11 +1,10 @@
 '''
-BipedalWalker solution by Michel Aka
 https://github.com/FitMachineLearning/FitML/
 https://www.youtube.com/channel/UCi7_WxajoowBl4_9P0DhzzA/featured
 Article about this solution
 https://github.com/FitMachineLearning/FitML/edit/master/ActorCritic/README.md
 Using Actor Critic
-Note that I prefe the terms Action Predictor Network and Q/Reward Predictor network better
+Note that I prefer the terms Action Predictor Network and Q/Reward Predictor network better
 Update
 Cleaned up variables and more readable memory
 Improved hyper parameters for better performance
@@ -17,29 +16,29 @@ import os
 import matplotlib.pyplot as plt
 
 from keras.models import Sequential
-from keras.layers import Dense
+from keras.layers import Dense, Dropout
 from keras import optimizers
 
 num_env_variables = 30
 num_env_actions = 5
 num_initial_observation = 50
-learning_rate = 0.01
-apLearning_rate = 0.008
+learning_rate = 0.001
+apLearning_rate = 0.001
 weigths_filename = "obstacle-avoidance-v1-weights.h5"
 apWeights_filename = "obstacle-avoidance-v1-weights-ap.h5"
 
 # range within wich the SmartCrossEntropy action parameters will deviate from
 # remembered optimal policy
 sce_range = 0.2
-b_discount = 0.85
-max_memory_len = 5000
-starting_explore_prob = 0.20
+b_discount = 0.80
+max_memory_len = 50000
+starting_explore_prob = 0.4
 training_epochs = 4
 mini_batch = 256
 load_previous_weights = False
 observe_and_train = True
 save_weights = True
-num_games_to_play = 20000
+num_games_to_play = 30000
 
 # One hot encoding array
 possible_actions = np.arange(0, num_env_actions)
@@ -47,45 +46,46 @@ actions_1_hot = np.zeros((num_env_actions, num_env_actions))
 actions_1_hot[np.arange(num_env_actions), possible_actions] = 1
 
 # Create testing enviroment
-box = box([10, 10, 40], pos=[-5, 25, 0])
-obstacles = np.array([box])
-position = np.array([-10, 25, 10])
-initial_pose = pose3D(position, True)
-position = np.array([10, 25, 10])
-target_pose = pose3D(position, True)
-cut_off = 4
-env = simulation(initial_pose, target_pose, obstacles, radius=2.0, cut_off=cut_off)
+box1 = box([6, 20, 15], pos=[-3, 10, 0])
+box2 = box([10, 10, 40], pos=[-5, 20, 0])
+obstacles = np.array([box1,box2])
+
+
+
+position = np.array([-15, 25, 10])
+initial_pose = pose3D(position, False)
+position = np.array([15, 25, 10])
+target_pose = pose3D(position, False)
+cut_off = 3
+radius = 4.0
+
+env = simulation(initial_pose, target_pose, obstacles, radius=radius, cut_off=cut_off)
 
 env.reset()
-
-# initialize training matrix with random states and actions
-dataX = np.random.random((5, num_env_variables + num_env_actions))
-# Only one output for the total score / reward
-dataY = np.random.random((5, 1))
-
-# initialize training matrix with random states and actions
-apdataX = np.random.random((5, num_env_variables))
-apdataY = np.random.random((5, num_env_actions))
-
-
-def custom_error(y_true, y_pred, Qsa):
-    cce = 0.001 * (y_true - y_pred) * Qsa
-    return cce
-
 
 # nitialize the Reward predictor model
 Qmodel = Sequential()
 # model.add(Dense(num_env_variables+num_env_actions, activation='tanh', input_dim=dataX.shape[1]))
-Qmodel.add(Dense(4096, activation='tanh', input_dim=dataX.shape[1]))
-Qmodel.add(Dense(dataY.shape[1]))
+Qmodel.add(Dense(256, activation='relu', input_dim=(num_env_variables + num_env_actions)))
+Qmodel.add(Dropout(0.5))
+Qmodel.add(Dense(256, activation='relu'))
+Qmodel.add(Dropout(0.5))
+Qmodel.add(Dense(256, activation='relu'))
+Qmodel.add(Dropout(0.2))
+Qmodel.add(Dense(1))
 opt = optimizers.adam(lr=learning_rate)
 Qmodel.compile(loss='mse', optimizer=opt, metrics=['accuracy'])
 
 # initialize the action predictor model
 action_predictor_model = Sequential()
 # model.add(Dense(num_env_variables+num_env_actions, activation='tanh', input_dim=dataX.shape[1]))
-action_predictor_model.add(Dense(4096, activation='tanh', input_dim=apdataX.shape[1]))
-action_predictor_model.add(Dense(apdataY.shape[1]))
+action_predictor_model.add(Dense(256, activation='relu', input_dim=num_env_variables))
+action_predictor_model.add(Dropout(0.5))
+action_predictor_model.add(Dense(256, activation='relu'))
+action_predictor_model.add(Dropout(0.5))
+action_predictor_model.add(Dense(256, activation='relu'))
+action_predictor_model.add(Dropout(0.2))
+action_predictor_model.add(Dense(num_env_actions))
 
 opt2 = optimizers.adam(lr=apLearning_rate)
 action_predictor_model.compile(loss='mse', optimizer=opt2, metrics=['accuracy'])
@@ -159,9 +159,10 @@ if observe_and_train:
             print("Learning & playing game ", game)
         for step in range(5000):
 
-            if game < num_initial_observation:
+            if game < num_initial_observation and not load_previous_weights:
                 # take a random action
                 a = env.random_action()
+                
             else:
                 prob = np.random.rand(1)
                 explore_prob = starting_explore_prob - (starting_explore_prob / num_games_to_play) * game
@@ -227,7 +228,8 @@ if observe_and_train:
                     if i == gameR.shape[0] - 1:
                         print("Training Game #", game, "memory ", memoryR.shape[0], " steps = ", step, "last reward", r,
                               " finished with score ", total_reward)
-
+                    
+                total_reward = 0
                 if memoryR.shape[0] == 1:
                     memorySA = gameSA
                     memoryR = gameR
@@ -246,7 +248,7 @@ if observe_and_train:
                     memoryR = memoryR[gameR.shape[0]:]
                     memoryA = memoryA[gameR.shape[0]:]
                     memoryS = memoryS[gameR.shape[0]:]
-
+                    
             # Update the states
             qs = s
 
@@ -265,9 +267,12 @@ if observe_and_train:
             if done and game >= num_initial_observation:
                 if save_weights and game % 20 == 0:
                     # Save model
-                    print("Saving weights")
-                    Qmodel.save_weights(weigths_filename)
-                    action_predictor_model.save_weights(apWeights_filename)
+                    print("------------------Saving weights-------------------")
+                    name_actor = "./save/actor_episode_" + str(game) + "_score_ " + str(total_reward) + "_.h5"
+                    name_critic = "./save/critic_episode_" + str(game) + "_score_ " + str(total_reward) + "_.h5"
+            
+                    Qmodel.save_weights(name_actor)
+                    action_predictor_model.save_weights(name_critic)
 
             if done:
                 '''
@@ -285,6 +290,6 @@ plt.show()
 
 if save_weights:
     # Save model
-    print("Saving weights")
+    print("------------------Saving weights-------------------")
     Qmodel.save_weights(weigths_filename)
     action_predictor_model.save_weights(apWeights_filename)
